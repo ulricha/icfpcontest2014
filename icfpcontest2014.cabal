@@ -24,3 +24,4 @@ executable icfpcontest2014
                      , ncurses == 0.2.10
   hs-source-dirs:      src
   default-language:    Haskell2010
+  ghc-options:         -Wall
