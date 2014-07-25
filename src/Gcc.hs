@@ -132,8 +132,6 @@ stop = liftF $ Stop
 label :: l -> GccProgram l ()
 label l = liftF $ Inst (LABEL l) ()
 
-label :: Int -> GccProgram ()
-label i = liftF $ LABEL i ()
 
 
 --------------------------------------------------------------------------
@@ -207,7 +205,6 @@ stupidAI = do
     label "body"
     ldc 5
     rtn
--}
 
 {-
 
