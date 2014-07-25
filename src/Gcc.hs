@@ -113,7 +113,28 @@ progToProgram prog = program
 
 
 getContinuation :: GccInstruction label cont -> cont
-getContinuation (LDC n c) = c
+getContinuation (LDC _ cont) = cont
+getContinuation (LD _ _ cont) = cont
+getContinuation (ADD cont) = cont
+getContinuation (SUB cont) = cont
+getContinuation (MUL cont) = cont
+getContinuation (DIV cont) = cont
+getContinuation (CEQ cont) = cont
+getContinuation (CGT cont) = cont
+getContinuation (CGTE cont) = cont
+getContinuation (ATOM cont) = cont
+getContinuation (CONS cont) = cont
+getContinuation (CAR cont) = cont
+getContinuation (CDR cont) = cont
+getContinuation (SEL cont) = cont
+getContinuation (JOIN cont) = cont
+getContinuation (LDF label cont) = cont
+getContinuation (AP label cont) = cont
+getContinuation (RTN cont) = cont
+getContinuation (DUM _ cont) = cont
+getContinuation (RAP _ cont) = cont
+getContinuation (STOP) = cont
+getContinuation (LABEL label cont) = cont
 
 
 codeGen :: GccProgram () -> [String]
