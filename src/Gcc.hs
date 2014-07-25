@@ -7,7 +7,7 @@ import Control.Monad.Free
 data GccInstruction label cont
         -- primitive instructions
         = LDC Int cont
-        | LD Int Int cont
+        | LD Int Int cont  -- (should the first arg be 'Char', the register name?)
         | ADD cont
         | SUB cont
         | MUL cont
@@ -100,41 +100,49 @@ rap i = liftF $ RAP i ()
 stop :: GccProgram ()
 stop = liftF $ STOP
 
+label :: Int -> GccProgram ()
+label i = liftF $ LABEL i ()
+
 
 --------------------------------------------------------------------------
 -- CodeGen
 --------------------------------------------------------------------------
 
+{-
 progToProgram :: GccProg () -> GccProgram ()
-progToProgram prog = program
+progToProgram prog = error "program"
   where
-    instructionList :: [GccInstruction
-    instructionList (Free instruction) = ...
+    instructionList :: GccProg () -> [GccProg ()]
+    instructionList (Free instruction) =
+        case getContinuation instruction of
+            Nothing -> []
+            Just cont -> instruction : instructionList cont
+-}
 
 
-getContinuation :: GccInstruction label cont -> cont
-getContinuation (LDC _ cont) = cont
-getContinuation (LD _ _ cont) = cont
-getContinuation (ADD cont) = cont
-getContinuation (SUB cont) = cont
-getContinuation (MUL cont) = cont
-getContinuation (DIV cont) = cont
-getContinuation (CEQ cont) = cont
-getContinuation (CGT cont) = cont
-getContinuation (CGTE cont) = cont
-getContinuation (ATOM cont) = cont
-getContinuation (CONS cont) = cont
-getContinuation (CAR cont) = cont
-getContinuation (CDR cont) = cont
-getContinuation (SEL cont) = cont
-getContinuation (JOIN cont) = cont
-getContinuation (LDF label cont) = cont
-getContinuation (AP label cont) = cont
-getContinuation (RTN cont) = cont
-getContinuation (DUM _ cont) = cont
-getContinuation (RAP _ cont) = cont
-getContinuation (STOP) = cont
-getContinuation (LABEL label cont) = cont
+getContinuation :: GccInstruction label cont -> Maybe cont
+getContinuation (LDC _ cont) = Just cont
+getContinuation (LD _ _ cont) = Just cont
+getContinuation (ADD cont) = Just cont
+getContinuation (SUB cont) = Just cont
+getContinuation (MUL cont) = Just cont
+getContinuation (DIV cont) = Just cont
+getContinuation (CEQ cont) = Just cont
+getContinuation (CGT cont) = Just cont
+getContinuation (CGTE cont) = Just cont
+getContinuation (ATOM cont) = Just cont
+getContinuation (CONS cont) = Just cont
+getContinuation (CAR cont) = Just cont
+getContinuation (CDR cont) = Just cont
+getContinuation (SEL cont) = Just cont
+getContinuation (JOIN cont) = Just cont
+getContinuation (LDF label cont) = Just cont
+getContinuation (AP label cont) = Just cont
+getContinuation (RTN cont) = Just cont
+getContinuation (DUM _ cont) = Just cont
+getContinuation (RAP _ cont) = Just cont
+getContinuation (LABEL label cont) = Just cont
+getContinuation (STOP) = Nothing
 
 
 codeGen :: GccProgram () -> [String]
@@ -182,6 +190,7 @@ data GccProgState = GPS { ds :: DataStack
 -- docks
 ----------------------------------------------------------------------
 
+{-
 stupidAI :: GccProg ()
 stupidAI = do
     ldc 4
@@ -190,7 +199,7 @@ stupidAI = do
     label "body"
     ldc 5
     rtn
-
+-}
 
 {-
 
@@ -206,5 +215,5 @@ stupidAI = do
 
 
 
-main :: IO ()
-main = putStrLn $ unlines $ codeGen stupidAI
+-- main :: IO ()
+-- main = putStrLn $ unlines $ codeGen stupidAI
