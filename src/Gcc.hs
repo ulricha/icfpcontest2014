@@ -45,6 +45,26 @@ data GccProgState = GPS { ds :: DataStack
 ldc :: Int -> GccProgram ()
 ldc n = liftF $ LDC n ()
 
+ld :: Int -> Int -> GccProgram ()
+ld n i = liftF $ LD n i ()
+
+add, sub, mul, div, ceq, cgt, cgte, atom, cons, car, cdr, sel :: GccProgram ()
+add = liftF $ ADD ()
+sub = liftF $ SUB ()
+mul = liftF $ MUL ()
+div = liftF $ DIV ()
+ceq = liftF $ CEQ ()
+cgt = liftF $ CGT ()
+cgte = liftF $ CGTE ()
+atom = liftF $ ATOM ()
+cons = liftF $ CONS ()
+car = liftF $ CAR ()
+cdr = liftF $ CDR ()
+sel = liftF $ SEL ()
+
+stop :: GccProgram ()
+stop = liftF $ STOP
+
 stupidAI :: GccProgram ()
 stupidAI = do
     ldc 4
