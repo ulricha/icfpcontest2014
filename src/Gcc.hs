@@ -4,9 +4,9 @@ module Gcc where
 
 import Control.Monad.Free
 
-data GccInst label 
+data GccInst label
     = LDC Int
-    | LD Int
+    | LD Int Int
     | ADD
     | SUB
     | MUL
@@ -25,121 +25,114 @@ data GccInst label
     | RTN
     | DUM Int
     | RAP Int
-    | STOP
+    deriving (Show)
     -- | LABEL label
      
 data GccInstruction label cont
-    = Inst GccInst Label const
+    = Inst (GccInst label) cont
+    | Stop
     deriving (Show, Functor)
 
-
+instList :: GccProgram a -> [GccInst Int]
+instList (Pure _)          = []
+instList (Free (Inst i c)) = i : instList c
 
 type GccProgram = Free (GccInstruction Int)
 type GccProg = Free (GccInstruction String)
 
 
 ldc :: Int -> GccProgram ()
-ldc n = liftF $ LDC n ()
+ldc n = liftF $ Inst (LDC n) ()
 
 ld :: Int -> Int -> GccProgram ()
-ld n i = liftF $ LD n i ()
+ld n i = liftF $ Inst (LD n i) ()
 
 add :: GccProgram ()
-add = liftF $ ADD ()
+add = liftF $ Inst ADD ()
 
 sub :: GccProgram ()
-sub = liftF $ SUB ()
+sub = liftF $ Inst SUB ()
 
 mul :: GccProgram ()
-mul = liftF $ MUL ()
+mul = liftF $ Inst MUL ()
 
 div :: GccProgram ()
-div = liftF $ DIV ()
+div = liftF $ Inst DIV ()
 
 ceq :: GccProgram ()
-ceq = liftF $ CEQ ()
+ceq = liftF $ Inst CEQ ()
 
 cgt :: GccProgram ()
-cgt = liftF $ CGT ()
+cgt = liftF $ Inst CGT ()
 
 cgte :: GccProgram ()
-cgte = liftF $ CGTE ()
+cgte = liftF $ Inst CGTE ()
 
 atom :: GccProgram ()
-atom = liftF $ ATOM ()
+atom = liftF $ Inst ATOM ()
 
 cons :: GccProgram ()
-cons = liftF $ CONS ()
+cons = liftF $ Inst CONS ()
 
 car :: GccProgram ()
-car = liftF $ CAR ()
+car = liftF $ Inst CAR ()
 
 cdr :: GccProgram ()
-cdr = liftF $ CDR ()
+cdr = liftF $ Inst CDR ()
 
 sel :: GccProgram ()
-sel = liftF $ SEL ()
+sel = liftF $ Inst SEL ()
 
 join_ :: GccProgram ()
-join_ = liftF $ JOIN ()
+join_ = liftF $ Inst JOIN ()
 
 ldf :: Int -> GccProgram ()
-ldf i = liftF $ LDF i ()
+ldf i = liftF $ Inst (LDF i) ()
 
 ap :: Int -> GccProgram ()
-ap i = liftF $ AP i ()
+ap i = liftF $ Inst (AP i) ()
 
 rtn :: GccProgram ()
-rtn = liftF $ RTN ()
+rtn = liftF $ Inst RTN ()
 
 dum :: Int -> GccProgram ()
-dum i = liftF $ DUM i ()
+dum i = liftF $ Inst (DUM i) ()
 
 rap :: Int -> GccProgram ()
-rap i = liftF $ RAP i ()
+rap i = liftF $ Inst (RAP i) ()
 
 stop :: GccProgram ()
-stop = liftF $ STOP
+stop = liftF $ Stop
 
 
 --------------------------------------------------------------------------
 -- CodeGen
 --------------------------------------------------------------------------
 
-progToProgram :: GccProg () -> GccProgram ()
-progToProgram prog = program
-  where
-    instructionList :: [GccInstruction
-    instructionList (Free instruction) = ...
+codeGen :: GccProgram a -> [String]
+codeGen p = map showInst $ instList p
 
-
-getContinuation :: GccInstruction label cont -> cont
-getContinuation (LDC n c) = c
-
-
-codeGen :: GccProgram () -> [String]
-codeGen (Pure _) = []
-codeGen (Free (LDC n c)) = ("LDC " ++ show n) : codeGen c
-codeGen (Free (LD n i c)) = ("LCD " ++ show n ++ " " ++ show i) : codeGen c
-codeGen (Free (ADD c)) = "ADD " : codeGen c
-codeGen (Free (SUB c)) = "SUB " : codeGen c
-codeGen (Free (DIV c)) = "DIV " : codeGen c
-codeGen (Free (MUL c)) = "MUL " : codeGen c
-codeGen (Free (CEQ c)) = "CEQ " : codeGen c
-codeGen (Free (CGT c)) = "CGT " : codeGen c
-codeGen (Free (CGTE c)) = "CGTE " : codeGen c
-codeGen (Free (ATOM c)) = "ATOM " : codeGen c
-codeGen (Free (CONS c)) = "CONS " : codeGen c
-codeGen (Free (CAR c)) = "CAR " : codeGen c
-codeGen (Free (CDR c)) = "CDR " : codeGen c
-codeGen (Free (SEL c)) = "SEL " : codeGen c
-codeGen (Free (JOIN c)) = "JOIN " : codeGen c
-codeGen (Free (LDF n c)) = ("LDF " ++ show n) : codeGen c
-codeGen (Free (AP n c)) = ("AP " ++ show n) : codeGen c
-codeGen (Free (RTN c)) = "RTN " : codeGen c
-codeGen (Free (DUM n c)) = ("DUM " ++ show n) : codeGen c
-codeGen (Free (RAP n c)) = ("RAP " ++ show n) : codeGen c
-codeGen (Free (STOP)) = ["STOP\n"]
+showInst :: Show a => GccInst a -> String
+showInst (LDC n) = ("LDC " ++ show n)
+showInst (LD n i) = ("LCD " ++ show n ++ " " ++ show i)
+showInst (ADD) = "ADD "
+showInst (SUB) = "SUB "
+showInst (DIV) = "DIV "
+showInst (MUL) = "MUL "
+showInst (CEQ) = "CEQ "
+showInst (CGT) = "CGT "
+showInst (CGTE) = "CGTE "
+showInst (ATOM) = "ATOM "
+showInst (CONS) = "CONS "
+showInst (CAR) = "CAR "
+showInst (CDR) = "CDR "
+showInst (SEL) = "SEL "
+showInst (JOIN) = "JOIN "
+showInst (LDF n) = ("LDF " ++ show n)
+showInst (AP n) = ("AP " ++ show n)
+showInst (RTN) = "RTN "
+showInst (DUM n) = ("DUM " ++ show n)
+showInst (RAP n) = ("RAP " ++ show n)
 
 
 ----------------------------------------------------------------------
@@ -162,14 +155,16 @@ data GccProgState = GPS { ds :: DataStack
 -- docks
 ----------------------------------------------------------------------
 
+{-
 stupidAI :: GccProg ()
 stupidAI = do
     ldc 4
     ldf "body"
     stop
-    label "body"
+    -- label "body"
     ldc 5
     rtn
+-}
 
 
 {-
@@ -186,5 +181,9 @@ stupidAI = do
 
 
 
+{-
+
 main :: IO ()
-main = putStrLn $ unlines $ codeGen stupidAI
+-- main = putStrLn $ unlines $ codeGen stupidAI
+main = putStrLn "foo"
+-}

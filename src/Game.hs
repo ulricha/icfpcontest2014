@@ -15,7 +15,7 @@ instance Show Cell where
         show Pill = "."
         show PowerPill = "o"
         show Fruit = "%"
-        show LambdaMan = "\"
+        show LambdaMan = "\\"
         show Ghost = "="
 
 type Map = [[Cell]]
