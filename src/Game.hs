@@ -21,4 +21,10 @@ instance Show Cell where
 type Map = [[Cell]]
 type Tick = Int
 
-type Move = Map -> Map
+newtype Game = Game { unGame :: Map -> (Map, Maybe Game)}
+
+noMoves :: Map -> Game
+noMoves m = Game (\_ -> (m, Just (noMoves m)))
+
+{-display :: Game -> IO ()-}
+{-display -}
