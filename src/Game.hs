@@ -170,8 +170,11 @@ video states = runCurses $ do
             render
             (Just ev) <- getEvent w Nothing
             case ev of
+                EventCharacter 'q' -> return ()
+                EventCharacter 'Q' -> return ()
                 EventSpecialKey KeyLeftArrow -> loop (i-1)
                 EventSpecialKey KeyRightArrow -> loop (i+1)
+                _ -> loop i
 
     loop 0
 
