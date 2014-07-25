@@ -18,13 +18,55 @@ instance Show Cell where
         show LambdaMan = "\\"
         show Ghost = "="
 
+data GameState = GameState Tick Map Points
+
 type Map = [[Cell]]
+
+type Points = Int
+
 type Tick = Int
 
-newtype Game = Game { unGame :: Map -> (Map, Maybe Game)}
+type LambdaManAI = ()
+type GhostAI = ()
 
-noMoves :: Map -> Game
+newtype Game = Game { unGame :: GameState -> (GameState, Maybe Game) }
+
+noMoves :: GameState -> Game
 noMoves m = Game (\_ -> (m, Just (noMoves m)))
+
+stage :: LambdaManAI -> [GhostAI] -> GameState -> Game
+stage = _
+
+run :: Int -> Game -> [GameState]
+run timeout game = _
+
+
+level1 :: Map
+level1 =
+    "#######################" :
+    "#..........#..........#" :
+    "#.###.####.#.####.###.#" :
+    "#o###.####.#.####.###o#" :
+    "#.....................#" :
+    "#.###.#.#######.#.###.#" :
+    "#.....#....#....#.....#" :
+    "#####.#### # ####.#####" :
+    "#   #.#    =    #.#   #" :
+    "#####.# ### ### #.#####" :
+    "#    .  # === #  .    #" :
+    "#####.# ####### #.#####" :
+    "#   #.#    %    #.#   #" :
+    "#####.# ####### #.#####" :
+    "#..........#..........#" :
+    "#.###.####.#.####.###.#" :
+    "#o..#......\\......#..o#" :
+    "###.#.#.#######.#.#.###" :
+    "#.....#....#....#.....#" :
+    "#.########.#.########.#" :
+    "#.....................#" :
+    "#######################" :
+    []
+
 
 {-display :: Game -> IO ()-}
 {-display -}
