@@ -4,34 +4,35 @@ module Gcc where
 
 import Control.Monad.Free
 
+data GccInst label 
+    = LDC Int
+    | LD Int
+    | ADD
+    | SUB
+    | MUL
+    | DIV
+    | CEQ
+    | CGT
+    | CGTE
+    | ATOM
+    | CONS
+    | CAR
+    | CDR
+    | SEL
+    | JOIN
+    | LDF label
+    | AP label
+    | RTN
+    | DUM Int
+    | RAP Int
+    | STOP
+    -- | LABEL label
+     
 data GccInstruction label cont
-        -- primitive instructions
-        = LDC Int cont
-        | LD Int Int cont
-        | ADD cont
-        | SUB cont
-        | MUL cont
-        | DIV cont
-        | CEQ cont
-        | CGT cont
-        | CGTE cont
-        | ATOM cont
-        | CONS cont
-        | CAR cont
-        | CDR cont
-        | SEL cont
-        | JOIN cont
-        | LDF label cont
-        | AP label cont
-        | RTN cont
-        | DUM Int cont
-        | RAP Int cont
-        | STOP
+    = Inst GccInst Label const
+    deriving (Show, Functor)
 
-        -- symbolic labels
-        | LABEL label cont
 
-        deriving (Show, Functor)
 
 type GccProgram = Free (GccInstruction Int)
 type GccProg = Free (GccInstruction String)
