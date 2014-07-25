@@ -27,7 +27,7 @@ data GccCInst
     | C_SEL
     | C_JOIN
     | C_LDF Line
-    | C_AP Line
+    | C_AP Int
     | C_RTN
     | C_DUM Int
     | C_RAP Int
@@ -50,7 +50,7 @@ data GccInst label
     | SEL
     | JOIN
     | LDF label
-    | AP label
+    | AP Int
     | RTN
     | DUM Int
     | RAP Int
@@ -114,7 +114,7 @@ join_ = liftF $ Inst JOIN ()
 ldf :: l -> GccProgram l ()
 ldf i = liftF $ Inst (LDF i) ()
 
-ap :: l -> GccProgram l ()
+ap :: Int -> GccProgram l ()
 ap i = liftF $ Inst (AP i) ()
 
 rtn :: GccProgram l ()
@@ -200,25 +200,20 @@ data GccProgState = GPS { ds :: DataStack
 
 stupidAI :: GccProgram String ()
 stupidAI = do
-    ldc 4
-    ldf "body"
-    label "body"
+    ldc 23
+    ldc 42
     ldc 5
+    ldf "addsub"
+    ap 3
     rtn
-
-{-
-
-0 ldc 4
-1 jmp 4
-; body:
-2 ldc 5
-3 rtn
-4 ldf 2
-5 stop
-
--}
-
-
+    label "addsub"
+    ld 0 2
+    ld 0 1
+    ld 0 0
+    add
+    sub
+    rtn
+    
 
 {-
 
@@ -233,7 +228,7 @@ main = putStrLn "foo"
 enumInsts :: [GccInst String] -> [Either (Line, GccInst String) String]
 enumInsts insts = reverse acc
   where
-    (acc, _) = foldl' enumInst ([], 1) insts
+    (acc, _) = foldl' enumInst ([], 0) insts
 
     enumInst (r, line) (LABEL label) = (Right label : r, line)
     enumInst (r, line) inst          = (Left (line, inst) : r, line + 1)
@@ -253,10 +248,7 @@ mapLabels env (LDF label : insts) = do
     line   <- lookup label env
     cinsts <- mapLabels env insts
     return $ C_LDF line : cinsts
-mapLabels env (AP label : insts) = do
-    line   <- lookup label env
-    cinsts <- mapLabels env insts
-    return $ C_AP line : cinsts
+mapLabels env (AP i : insts) = (:) (C_AP i) <$> mapLabels env insts
 mapLabels env (LDC i : insts) = (:) (C_LDC i) <$> mapLabels env insts
 mapLabels env (LD i1 i2: insts) = (:) (C_LD i1 i2) <$> mapLabels env insts
 mapLabels env (ADD : insts) = (:) C_ADD <$> mapLabels env insts
