@@ -133,6 +133,21 @@ label :: l -> GccProgram l ()
 label l = liftF $ Inst (LABEL l) ()
 
 
+ldc' :: Int -> GccProgram Int
+ldc' a = ldc a >> return a
+
+cgt' :: Int -> Int -> GccProgram Int
+cgt' a b = do
+        ldc a
+        ldc b
+        cgt
+        if (a > b)
+           then return 0
+           else return 1
+                
+
+
+
 
 --------------------------------------------------------------------------
 -- CodeGen
