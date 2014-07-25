@@ -1,6 +1,7 @@
 module Game where
 
 import Control.Monad
+import UI.NCurses
 
 data Cell = Wall
           | Empty
@@ -48,10 +49,10 @@ noMoves :: GameState -> Game
 noMoves m = Game (\_ -> (m, Just (noMoves m)))
 
 stage :: LambdaManAI -> [GhostAI] -> GameState -> Game
-stage = _
+stage = error "wef"
 
 run :: Int -> Game -> [GameState]
-run timeout game = _
+run timeout game = error "wef"
 
 
 level1 :: Map
@@ -124,3 +125,17 @@ mapLevel m = head [ level | level <- [1..]
   where
     mapWidth = length (head m)
     mapHeight = length m
+
+
+
+video :: IO ()
+video = runCurses $ do
+    w <- defaultWindow
+    updateWindow w $ do
+        drawString "wef"
+    render
+    getEvent w Nothing
+    return ()
+
+
+main = video
