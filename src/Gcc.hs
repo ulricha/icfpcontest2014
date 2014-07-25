@@ -5,6 +5,7 @@ module Gcc where
 import Control.Monad.Free
 import Control.Applicative
 import Data.List
+import Data.Maybe
 
 type Line = Int
 
@@ -31,7 +32,28 @@ data GccCInst
     | C_RTN
     | C_DUM Int
     | C_RAP Int
-    deriving (Show)
+
+instance Show GccCInst where
+    show (C_LDC n) = ("LDC " ++ show n)
+    show (C_LD n i) = ("LD " ++ show n ++ " " ++ show i)
+    show (C_ADD) = "ADD "
+    show (C_SUB) = "SUB "
+    show (C_DIV) = "DIV "
+    show (C_MUL) = "MUL "
+    show (C_CEQ) = "CEQ "
+    show (C_CGT) = "CGT "
+    show (C_CGTE) = "CGTE "
+    show (C_ATOM) = "ATOM "
+    show (C_CONS) = "CONS "
+    show (C_CAR) = "CAR "
+    show (C_CDR) = "CDR "
+    show (C_SEL) = "SEL "
+    show (C_JOIN) = "JOIN "
+    show (C_LDF n) = ("LDF " ++ show n)
+    show (C_AP n) = ("AP " ++ show n)
+    show (C_RTN) = "RTN "
+    show (C_DUM n) = ("DUM " ++ show n)
+    show (C_RAP n) = ("RAP " ++ show n)
 
 data GccInst label
     = LDC Int
@@ -143,40 +165,8 @@ instList (Pure _)          = []
 instList (Free (Inst i c)) = i : instList c
 instList (Free Stop)       = []
 
-{-
-1. associate every non-label inst with number
-2. Associate inst following label with label name
--}
-
-
-
-codeGen :: Show l => GccProgram l a -> [String]
-codeGen p = map showInst $ instList p
-
-showInst :: Show a => GccInst a -> String
-showInst (LDC n) = ("LDC " ++ show n)
-showInst (LD n i) = ("LCD " ++ show n ++ " " ++ show i)
-showInst (ADD) = "ADD "
-showInst (SUB) = "SUB "
-showInst (DIV) = "DIV "
-showInst (MUL) = "MUL "
-showInst (CEQ) = "CEQ "
-showInst (CGT) = "CGT "
-showInst (CGTE) = "CGTE "
-showInst (ATOM) = "ATOM "
-showInst (CONS) = "CONS "
-showInst (CAR) = "CAR "
-showInst (CDR) = "CDR "
-showInst (SEL) = "SEL "
-showInst (JOIN) = "JOIN "
-showInst (LDF n) = ("LDF " ++ show n)
-showInst (AP n) = ("AP " ++ show n)
-showInst (RTN) = "RTN "
-showInst (DUM n) = ("DUM " ++ show n)
-showInst (RAP n) = ("RAP " ++ show n)
-showInst (LABEL l) = "LABEL " ++ show l
-
-
+codeGen :: GccProgram String a -> String
+codeGen p = intercalate "\n" $ map show $ fromJust $ lineLabels $ instList p
 
 ----------------------------------------------------------------------
 -- run time
@@ -230,22 +220,22 @@ enumInsts insts = reverse acc
   where
     (acc, _) = foldl' enumInst ([], 0) insts
 
-    enumInst (r, line) (LABEL label) = (Right label : r, line)
-    enumInst (r, line) inst          = (Left (line, inst) : r, line + 1)
+    enumInst (r, line) (LABEL lab) = (Right lab : r, line)
+    enumInst (r, line) inst        = (Left (line, inst) : r, line + 1)
 
 -- | Associate every label with the line number of its following
 -- instruction.
 assocLabelLine :: [Either (Line, GccInst String) String] -> [(String, Line)]
-assocLabelLine (Left _ : is)                       = assocLabelLine is
-assocLabelLine (Right label : Left (line, _) : is) = (label, line) : assocLabelLine is
-assocLabelLine []                                  = []
-assocLabelLine _                                   = error "assocLabelLine"
+assocLabelLine (Left _ : is)                   = assocLabelLine is
+assocLabelLine (Right lab : Left (line, _) : is) = (lab, line) : assocLabelLine is
+assocLabelLine []                              = []
+assocLabelLine _                               = error "assocLabelLine"
 
 mapLabels :: [(String, Line)] -> [GccInst String] -> Maybe [GccCInst]
 mapLabels _   [] = pure []
 mapLabels env (LABEL _ : insts) = mapLabels env insts
-mapLabels env (LDF label : insts) = do
-    line   <- lookup label env
+mapLabels env (LDF lab : insts) = do
+    line   <- lookup lab env
     cinsts <- mapLabels env insts
     return $ C_LDF line : cinsts
 mapLabels env (AP i : insts) = (:) (C_AP i) <$> mapLabels env insts
