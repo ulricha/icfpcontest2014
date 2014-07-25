@@ -68,3 +68,22 @@ stop = liftF $ STOP
 stupidAI :: GccProgram ()
 stupidAI = do
     ldc 4
+
+--------------------------------------------------------------------------
+-- CodeGen
+--------------------------------------------------------------------------
+
+codeGen :: GccProgram n -> String
+codeGen (Pure n) = "\n"
+codeGen (Free (LDC n c)) = "LDC " ++ show n ++ " ;\n" ++ codeGen c
+codeGen (Free (LDC n c)) = "LDC " ++ show n ++ " ;\n" ++ codeGen c
+codeGen (Free (LD n i c)) = "LCD " ++ show n ++ " " ++ show i ++ " ;\n" ++ codeGen c
+codeGen (Free (ADD c)) = "ADD " ++ "\n" ++ codeGen c
+codeGen (Free (SUB c)) = "SUB " ++ "\n" ++ codeGen c
+codeGen (Free (DIV c)) = "DIV " ++ "\n" ++ codeGen c
+codeGen (Free (MUL c)) = "MUL " ++ "\n" ++ codeGen c
+codeGen (Free (CEQ c)) = "CEQ " ++ "\n" ++ codeGen c
+codeGen (Free (CGT c)) = "CGT " ++ "\n" ++ codeGen c
+codeGen (Free (CGTE c)) = "CGTE " ++ "\n" ++ codeGen c
+codeGen (Free (ATOM c)) = "ATOM " ++ "\n" ++ codeGen c
+codeGen (Free (CONS c)) = "CONS " ++ "\n" ++ codeGen c
