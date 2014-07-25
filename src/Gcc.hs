@@ -4,7 +4,8 @@ module Gcc where
 
 import Control.Monad.Free
 
-data GccInstruction cont
+data GccInstruction label cont
+        -- primitive instructions
         = LDC Int cont
         | LD Int Int cont
         | ADD cont
@@ -20,26 +21,20 @@ data GccInstruction cont
         | CDR cont
         | SEL cont
         | JOIN cont
-        | LDF Int cont
-        | AP Int cont
+        | LDF label cont
+        | AP label cont
         | RTN cont
         | DUM Int cont
         | RAP Int cont
         | STOP
+
+        -- symbolic labels
+        | LABEL label cont
+
         deriving (Show, Functor)
 
-type GccProgram = Free GccInstruction
-data DataStack
-data ControlStack
-data EnvironmentFrame
-data DataHeap
-
-
-data GccProgState = GPS { ds :: DataStack
-                        , cs :: ControlStack
-                        , ef :: EnvironmentFrame
-                        , dh :: DataHeap
-                        }
+type GccProgram = Free (GccInstruction Int)
+type GccProg = Free (GccInstruction String)
 
 
 ldc :: Int -> GccProgram ()
@@ -106,45 +101,89 @@ stop :: GccProgram ()
 stop = liftF $ STOP
 
 
-
 --------------------------------------------------------------------------
 -- CodeGen
 --------------------------------------------------------------------------
 
-codeGen :: GccProgram n -> String
-codeGen (Pure n) = "\n"
-codeGen (Free (LDC n c)) = "LDC " ++ show n ++ "\n" ++ codeGen c
-codeGen (Free (LD n i c)) = "LCD " ++ show n ++ " " ++ show i ++ "\n" ++ codeGen c
-codeGen (Free (ADD c)) = "ADD " ++ "\n" ++ codeGen c
-codeGen (Free (SUB c)) = "SUB " ++ "\n" ++ codeGen c
-codeGen (Free (DIV c)) = "DIV " ++ "\n" ++ codeGen c
-codeGen (Free (MUL c)) = "MUL " ++ "\n" ++ codeGen c
-codeGen (Free (CEQ c)) = "CEQ " ++ "\n" ++ codeGen c
-codeGen (Free (CGT c)) = "CGT " ++ "\n" ++ codeGen c
-codeGen (Free (CGTE c)) = "CGTE " ++ "\n" ++ codeGen c
-codeGen (Free (ATOM c)) = "ATOM " ++ "\n" ++ codeGen c
-codeGen (Free (CONS c)) = "CONS " ++ "\n" ++ codeGen c
-codeGen (Free (CAR c)) = "CAR " ++ "\n" ++ codeGen c
-codeGen (Free (CDR c)) = "CDR " ++ "\n" ++ codeGen c
-codeGen (Free (SEL c)) = "SEL " ++ "\n" ++ codeGen c
-codeGen (Free (JOIN c)) = "JOIN " ++ "\n" ++ codeGen c
-codeGen (Free (LDF n c)) = "LDF " ++ show n ++ "\n" ++ codeGen c
-codeGen (Free (AP n c)) = "AP " ++ show n ++ "\n" ++ codeGen c
-codeGen (Free (RTN c)) = "RTN " ++ "\n" ++ codeGen c
-codeGen (Free (DUM n c)) = "DUM " ++ show n ++ "\n" ++ codeGen c
-codeGen (Free (RAP n c)) = "RAP " ++ show n ++ "\n" ++ codeGen c
-codeGen (Free (STOP)) = "STOP\n"
+progToProgram :: GccProg () -> GccProgram ()
+progToProgram prog = program
+  where
+    instructionList :: [GccInstruction
+    instructionList (Free instruction) = ...
+
+
+getContinuation :: GccInstruction label cont -> cont
+getContinuation (LDC n c) = c
+
+
+codeGen :: GccProgram () -> [String]
+codeGen (Pure _) = []
+codeGen (Free (LDC n c)) = ("LDC " ++ show n) : codeGen c
+codeGen (Free (LD n i c)) = ("LCD " ++ show n ++ " " ++ show i) : codeGen c
+codeGen (Free (ADD c)) = "ADD " : codeGen c
+codeGen (Free (SUB c)) = "SUB " : codeGen c
+codeGen (Free (DIV c)) = "DIV " : codeGen c
+codeGen (Free (MUL c)) = "MUL " : codeGen c
+codeGen (Free (CEQ c)) = "CEQ " : codeGen c
+codeGen (Free (CGT c)) = "CGT " : codeGen c
+codeGen (Free (CGTE c)) = "CGTE " : codeGen c
+codeGen (Free (ATOM c)) = "ATOM " : codeGen c
+codeGen (Free (CONS c)) = "CONS " : codeGen c
+codeGen (Free (CAR c)) = "CAR " : codeGen c
+codeGen (Free (CDR c)) = "CDR " : codeGen c
+codeGen (Free (SEL c)) = "SEL " : codeGen c
+codeGen (Free (JOIN c)) = "JOIN " : codeGen c
+codeGen (Free (LDF n c)) = ("LDF " ++ show n) : codeGen c
+codeGen (Free (AP n c)) = ("AP " ++ show n) : codeGen c
+codeGen (Free (RTN c)) = "RTN " : codeGen c
+codeGen (Free (DUM n c)) = ("DUM " ++ show n) : codeGen c
+codeGen (Free (RAP n c)) = ("RAP " ++ show n) : codeGen c
+codeGen (Free (STOP)) = ["STOP\n"]
+
+
+----------------------------------------------------------------------
+-- run time
+----------------------------------------------------------------------
+
+data DataStack
+data ControlStack
+data EnvironmentFrame
+data DataHeap
+
+data GccProgState = GPS { ds :: DataStack
+                        , cs :: ControlStack
+                        , ef :: EnvironmentFrame
+                        , dh :: DataHeap
+                        }
 
 
 ----------------------------------------------------------------------
 -- docks
 ----------------------------------------------------------------------
 
-stupidAI :: GccProgram ()
+stupidAI :: GccProg ()
 stupidAI = do
     ldc 4
+    ldf "body"
     stop
+    label "body"
+    ldc 5
+    rtn
+
+
+{-
+
+0 ldc 4
+1 jmp 4
+; body:
+2 ldc 5
+3 rtn
+4 ldf 2
+5 stop
+
+-}
+
 
 
 main :: IO ()
-main = putStrLn $ codeGen stupidAI
+main = putStrLn $ unlines $ codeGen stupidAI
