@@ -25,91 +25,93 @@ data GccInst label
     | RTN
     | DUM Int
     | RAP Int
+    | LABEL label
     deriving (Show)
-    -- | LABEL label
      
 data GccInstruction label cont
     = Inst (GccInst label) cont
     | Stop
     deriving (Show, Functor)
 
-instList :: GccProgram a -> [GccInst Int]
-instList (Pure _)          = []
-instList (Free (Inst i c)) = i : instList c
+type GccProgram l = Free (GccInstruction l)
+type GccProg = GccProgram String
 
-type GccProgram = Free (GccInstruction Int)
-type GccProg = Free (GccInstruction String)
-
-
-ldc :: Int -> GccProgram ()
+ldc :: Int -> GccProgram l ()
 ldc n = liftF $ Inst (LDC n) ()
 
-ld :: Int -> Int -> GccProgram ()
+ld :: Int -> Int -> GccProgram l ()
 ld n i = liftF $ Inst (LD n i) ()
 
-add :: GccProgram ()
+add :: GccProgram l ()
 add = liftF $ Inst ADD ()
 
-sub :: GccProgram ()
+sub :: GccProgram l ()
 sub = liftF $ Inst SUB ()
 
-mul :: GccProgram ()
+mul :: GccProgram l ()
 mul = liftF $ Inst MUL ()
 
-div :: GccProgram ()
+div :: GccProgram l ()
 div = liftF $ Inst DIV ()
 
-ceq :: GccProgram ()
+ceq :: GccProgram l ()
 ceq = liftF $ Inst CEQ ()
 
-cgt :: GccProgram ()
+cgt :: GccProgram l ()
 cgt = liftF $ Inst CGT ()
 
-cgte :: GccProgram ()
+cgte :: GccProgram l ()
 cgte = liftF $ Inst CGTE ()
 
-atom :: GccProgram ()
+atom :: GccProgram l ()
 atom = liftF $ Inst ATOM ()
 
-cons :: GccProgram ()
+cons :: GccProgram l ()
 cons = liftF $ Inst CONS ()
 
-car :: GccProgram ()
+car :: GccProgram l ()
 car = liftF $ Inst CAR ()
 
-cdr :: GccProgram ()
+cdr :: GccProgram l ()
 cdr = liftF $ Inst CDR ()
 
-sel :: GccProgram ()
+sel :: GccProgram l ()
 sel = liftF $ Inst SEL ()
 
-join_ :: GccProgram ()
+join_ :: GccProgram l ()
 join_ = liftF $ Inst JOIN ()
 
-ldf :: Int -> GccProgram ()
+ldf :: l -> GccProgram l ()
 ldf i = liftF $ Inst (LDF i) ()
 
-ap :: Int -> GccProgram ()
+ap :: l -> GccProgram l ()
 ap i = liftF $ Inst (AP i) ()
 
-rtn :: GccProgram ()
+rtn :: GccProgram l ()
 rtn = liftF $ Inst RTN ()
 
-dum :: Int -> GccProgram ()
+dum :: Int -> GccProgram l ()
 dum i = liftF $ Inst (DUM i) ()
 
-rap :: Int -> GccProgram ()
+rap :: Int -> GccProgram l ()
 rap i = liftF $ Inst (RAP i) ()
 
-stop :: GccProgram ()
+stop :: GccProgram l ()
 stop = liftF $ Stop
+
+label :: l -> GccProgram l ()
+label l = liftF $ Inst (LABEL l) ()
 
 
 --------------------------------------------------------------------------
 -- CodeGen
 --------------------------------------------------------------------------
 
-codeGen :: GccProgram a -> [String]
+instList :: GccProgram l a -> [GccInst l]
+instList (Pure _)          = []
+instList (Free (Inst i c)) = i : instList c
+
+codeGen :: Show l => GccProgram l a -> [String]
 codeGen p = map showInst $ instList p
 
 showInst :: Show a => GccInst a -> String
@@ -155,16 +157,14 @@ data GccProgState = GPS { ds :: DataStack
 -- docks
 ----------------------------------------------------------------------
 
-{-
-stupidAI :: GccProg ()
+stupidAI :: GccProgram String ()
 stupidAI = do
     ldc 4
     ldf "body"
     stop
-    -- label "body"
+    label "body"
     ldc 5
     rtn
--}
 
 
 {-
