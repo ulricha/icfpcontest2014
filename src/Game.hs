@@ -2,6 +2,7 @@ module Game where
 
 import Control.Monad
 import UI.NCurses
+import qualified Data.Vector as V
 
 data Cell = Wall
           | Empty
@@ -81,6 +82,32 @@ level1 = map (map charToCell) $
     "#######################" :
     []
 
+level2 :: Map
+level2 = map (map charToCell) $
+    "#######################" :
+    "#..........#..........#" :
+    "#.###.####.#.####.###.#" :
+    "#o###.####.#.####.###o#" :
+    "#.....................#" :
+    "#.###.#.#######.#.###.#" :
+    "#.....#....#....#.....#" :
+    "#####.#### # ####.#####" :
+    "#   #.#    =    #.#   #" :
+    "#####.# ### ### #.#####" :
+    "#    .  # === #  .    #" :
+    "#####.# ####### #.#####" :
+    "#   #.#      %  #.#   #" :
+    "#####.# ####### #.#####" :
+    "#..........#..........#" :
+    "#.###.####.#.####.###.#" :
+    "#o..#.....\\.......#..o#" :
+    "###.#.#.#######.#.#.###" :
+    "#.....#....#....#.....#" :
+    "#.########.#.########.#" :
+    "#.....................#" :
+    "#######################" :
+    []
+
 
 {-display :: Game -> IO ()-}
 {-display -}
@@ -127,15 +154,27 @@ mapLevel m = head [ level | level <- [1..]
     mapHeight = length m
 
 
-
-video :: IO ()
-video = runCurses $ do
+video :: V.Vector Map -> IO ()
+video states = runCurses $ do
     w <- defaultWindow
-    updateWindow w $ do
-        drawString "wef"
-    render
-    getEvent w Nothing
-    return ()
+
+    let show_ = unlines . map concat . map (map show)
+
+        loop i
+          | i < 0                 = loop 0
+          | i >= V.length states  = loop (V.length states - 1)
+          | True = do
+            updateWindow w $ do
+                moveCursor 0 0
+                drawString . show_ $ states V.! i
+            render
+            (Just ev) <- getEvent w Nothing
+            case ev of
+                EventSpecialKey KeyLeftArrow -> loop (i-1)
+                EventSpecialKey KeyRightArrow -> loop (i+1)
+
+    loop 0
 
 
-main = video
+main :: IO ()
+main = video $ V.fromList [level1, level2]
