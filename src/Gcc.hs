@@ -81,7 +81,7 @@ data GccInst label
 
 data GccInstruction label cont
     = Inst (GccInst label) cont
-    | Stop
+    -- | Stop  (removed because the implementation is broken and according to specs it is deprecated)
     deriving (Show, Functor)
 
 
@@ -148,9 +148,6 @@ dum i = liftF $ Inst (DUM i) ()
 rap :: Int -> GccProgram l ()
 rap i = liftF $ Inst (RAP i) ()
 
-stop :: GccProgram l ()
-stop = liftF $ Stop
-
 label :: l -> GccProgram l ()
 label l = liftF $ Inst (LABEL l) ()
 
@@ -163,7 +160,6 @@ label l = liftF $ Inst (LABEL l) ()
 instList :: GccProgram l a -> [GccInst l]
 instList (Pure _)          = []
 instList (Free (Inst i c)) = i : instList c
-instList (Free Stop)       = []
 
 codeGen :: GccProgram String a -> String
 codeGen p = intercalate "\n" $ map show $ fromJust $ lineLabels $ instList p
