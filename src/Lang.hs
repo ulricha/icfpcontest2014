@@ -61,21 +61,33 @@ unOp o = case o of
 --------------------------------------------------------------------------------
 -- Constructors
 
-not :: Expr -> Expr
-not e = Cond (App2 Eq e (int 0)) (int 1) (int 0)
+binApp :: BinOp -> Expr -> Expr -> Expr
+binApp op = App2 op
 
-and :: Expr -> Expr -> Expr
-and e1 e2 = Cond (App2 Eq e1 (int 0)) (int 0) e2
+instance Num Expr where
+    (+) = binApp Add
+    (-) = binApp Sub
+    (*) = binApp Mul
+    abs = undefined
+    fromInteger = Lit . IntV . fromInteger
+    signum = undefined
 
-or :: Expr -> Expr -> Expr
-or e1 e2 = Cond (App2 Eq e1 (int 0)) e2 (int 1)
-
-int :: Int -> Expr
-int = Lit . IntV
+(.>), (.>=), (.==) :: Expr -> Expr -> Expr
+(.>) = binApp Gt
+(.>=) = binApp GtE
+(.==) = binApp Eq
 
 nil :: Expr
 nil = Lit NilV
 
+not :: Expr -> Expr
+not e = Cond (App2 Eq e 0) 1 0
+
+and :: Expr -> Expr -> Expr
+and e1 e2 = Cond (App2 Eq e1 0) 0 e2
+
+or :: Expr -> Expr -> Expr
+or e1 e2 = Cond (App2 Eq e1 0) e2 1
 
 --------------------------------------------------------------------------------
 -- SECD^WGCC compiler
