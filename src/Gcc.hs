@@ -3,6 +3,8 @@
 module Gcc where
 
 import Control.Monad.Free
+import Control.Monad.State (State, get, gets, put) -- TODO: strict?
+import qualified Data.IntMap as M
 import Control.Applicative
 import Data.List
 
@@ -24,7 +26,7 @@ data GccCInst
     | C_CONS
     | C_CAR
     | C_CDR
-    | C_SEL
+    | C_SEL Int Int
     | C_JOIN
     | C_LDF Line
     | C_AP Int
@@ -47,7 +49,7 @@ data GccInst label
     | CONS
     | CAR
     | CDR
-    | SEL
+    | SEL label label
     | JOIN
     | LDF label
     | AP Int
@@ -105,8 +107,8 @@ car = liftF $ Inst CAR ()
 cdr :: GccProgram l ()
 cdr = liftF $ Inst CDR ()
 
-sel :: GccProgram l ()
-sel = liftF $ Inst SEL ()
+sel :: l -> l -> GccProgram l ()
+sel t f = liftF $ Inst (SEL t f) ()
 
 join_ :: GccProgram l ()
 join_ = liftF $ Inst JOIN ()
@@ -167,7 +169,7 @@ showInst (ATOM) = "ATOM "
 showInst (CONS) = "CONS "
 showInst (CAR) = "CAR "
 showInst (CDR) = "CDR "
-showInst (SEL) = "SEL "
+showInst (SEL t f) = "SEL " ++ show t ++ " " ++ show f
 showInst (JOIN) = "JOIN "
 showInst (LDF n) = ("LDF " ++ show n)
 showInst (AP n) = ("AP " ++ show n)
@@ -182,17 +184,124 @@ showInst (LABEL l) = "LABEL " ++ show l
 -- run time
 ----------------------------------------------------------------------
 
-data DataStack
-data ControlStack
-data EnvironmentFrame
-data DataHeap
+type Pointer = Int
+data TaggedValue = Int Int | PairPointer Pointer | ClosurePointer Pointer
+
+data HeapElement = Pair TaggedValue TaggedValue | Closure Int EnvironmentFrame
+
+-- type Pair = (TaggedValue, TaggedValue)
+data Closure
+
+type DataStack = [TaggedValue]
+type ControlStack = [Line]
+                              -- Parent Frame
+data EnvironmentFrame = Frame (Maybe EnvironmentFrame) [TaggedValue]
+data DataHeap = Heap (M.IntMap HeapElement) Int
+
+heapPut :: DataHeap -> HeapElement -> (DataHeap, Pointer)
+heapPut (Heap m curPointer) v =
+    (Heap (M.insert curPointer v m) (curPointer + 1), curPointer)
+
+
+heapGet :: DataHeap -> Pointer -> HeapElement
+heapGet (Heap m _) pointer = case M.lookup pointer m of
+    Just e -> e
+    Nothing -> error "looks like this was never allocated"
 
 data GccProgState = GPS { ds :: DataStack
                         , cs :: ControlStack
                         , ef :: EnvironmentFrame
                         , dh :: DataHeap
+                        , pc :: Int
                         }
 
+
+--interpret :: GccProgram l a -> [String]
+--interpret p = mapM interpretInst $ instList p
+
+(!!!) :: EnvironmentFrame -> Int -> TaggedValue
+Frame _ values !!! n = values !! n
+
+
+-- TODO: so many partial functions...
+interpretInst :: GccCInst -> State GccProgState ()
+interpretInst instr = do
+    
+    GPS dataStack controlStack env heap pc <- get
+    
+    let pushStack e s = put $ GPS (e : s) controlStack env heap (pc + 1)
+
+    case instr of
+        C_LDC n -> pushStack (Int n) dataStack
+        C_LD n i -> pushStack (getFrame env n !!! i) dataStack
+        C_ADD -> binStackIntOp (+)
+        C_SUB -> binStackIntOp (-)
+        C_MUL -> binStackIntOp (*)
+        C_DIV -> binStackIntOp Prelude.div
+        C_CEQ -> binStackIntOp (\a b -> fromEnum $ a == b)
+        C_CGT -> binStackIntOp (\a b -> fromEnum $ a > b)
+        C_CGTE -> binStackIntOp (\a b -> fromEnum $ a >= b)
+        C_ATOM -> case dataStack of
+                    [] -> error "stack is empty"
+                    Int _ : stack -> pushStack (Int 1) stack
+                    _ : stack     -> pushStack (Int 0) stack
+
+        C_CONS -> case dataStack of
+                    a : b : stack -> do
+                        let (heap', pointer) = heapPut heap (Pair a b)
+                        put $ GPS (PairPointer pointer : stack)
+                                   controlStack env heap' (pc + 1)
+                    _ -> error "not enough values on the stack"
+
+        C_CAR -> case dataStack of
+            (PairPointer p) : stack ->
+                case heapGet heap p of
+                    Pair car cdr -> pushStack car stack
+                    _ -> error "CAR: heap value is not a pair"
+            _ : _ -> error "CAR: top of stack does not point to a pair"
+            [] -> error "CAR: empty stack"
+
+        C_CDR -> case dataStack of
+            (PairPointer p) : stack ->
+                case heapGet heap p of
+                    Pair car cdr -> pushStack cdr stack
+                    _ -> error "CAR: heap value is not a pair"
+            _ : _ -> error "CAR: top of stack does not point to a pair"
+            [] -> error "CAR: empty stack"
+
+        C_SEL t f -> case dataStack of
+            Int n : stack -> let pc' = if n /= 0 then t else f in
+                             put $ GPS stack controlStack env heap pc'
+            _ : _ -> error "SEL: top of the stack is not an int"
+            [] -> error "SEL: stack is empty"
+
+        C_JOIN -> case controlStack of
+            retAddr : stack -> put $ GPS dataStack stack env heap retAddr
+            [] -> error "control stack is empty"
+
+        C_LDF f -> let (heap', pointer) = heapPut heap (Closure f env)
+                   in put $ GPS (Int pointer : dataStack)
+                                 controlStack env heap' pc
+
+        C_AP n -> 
+        
+  where
+
+    binStackIntOp :: (Int -> Int -> Int) -> State GccProgState ()
+    binStackIntOp op = do
+        GPS dataStack controlStack env heap pc <- get
+        case dataStack of
+            [] ->  error "stack is empty"
+            [_] ->  error "stack has only 1 element"
+            (Int a : Int b : stack) ->
+                put $ GPS (Int (a `op` b) : stack)
+                            controlStack env heap (pc + 1)
+            _ -> error "tag mismatch"
+
+    getFrame :: EnvironmentFrame -> Int -> EnvironmentFrame
+    getFrame f 0 = f
+    getFrame (Frame (Just parent) values) n = getFrame parent (n - 1)
+    getFrame _ _ = error "frame does not exist"
 
 ----------------------------------------------------------------------
 -- docks
@@ -248,6 +357,11 @@ mapLabels env (LDF label : insts) = do
     line   <- lookup label env
     cinsts <- mapLabels env insts
     return $ C_LDF line : cinsts
+mapLabels env (SEL t f : insts) = do
+    lineTrue <- lookup t env
+    lineFalse <- lookup f env
+    cinsts <- mapLabels env insts
+    return $ C_SEL lineTrue lineFalse : cinsts
 mapLabels env (AP i : insts) = (:) (C_AP i) <$> mapLabels env insts
 mapLabels env (LDC i : insts) = (:) (C_LDC i) <$> mapLabels env insts
 mapLabels env (LD i1 i2: insts) = (:) (C_LD i1 i2) <$> mapLabels env insts
@@ -262,7 +376,6 @@ mapLabels env (ATOM : insts) = (:) C_ATOM <$> mapLabels env insts
 mapLabels env (CONS : insts) = (:) C_CONS <$> mapLabels env insts
 mapLabels env (CAR : insts) = (:) C_CAR <$> mapLabels env insts
 mapLabels env (CDR : insts) = (:) C_CDR <$> mapLabels env insts
-mapLabels env (SEL : insts) = (:) C_SEL <$> mapLabels env insts
 mapLabels env (JOIN : insts) = (:) C_JOIN <$> mapLabels env insts
 mapLabels env (RTN : insts) = (:) C_RTN <$> mapLabels env insts
 mapLabels env (DUM i : insts) = (:) (C_DUM i) <$> mapLabels env insts
