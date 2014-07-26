@@ -219,7 +219,7 @@ enumInsts insts = reverse acc
 
 -- | Associate every label with the line number of its following
 -- instruction.
-assocLabelLine' :: [Either (Line, GccInst String) String] -> [(String, Line)]
+assocLabelLine :: [Either (Line, GccInst String) String] -> [(String, Line)]
 assocLabelLine insts = if null bad then result else error $ "assocLabelLine: dupliate labels: " ++ show bad
   where
     result = assocLabelLine' insts
