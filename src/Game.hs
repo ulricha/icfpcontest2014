@@ -179,5 +179,7 @@ video states = runCurses $ do
     loop 0
 
 
+{-
 main :: IO ()
 main = video $ V.fromList [level1, level2]
+-}

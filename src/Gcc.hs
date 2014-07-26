@@ -204,56 +204,20 @@ stupidAI = do
     sub
     rtn
 
-goto :: GccProgram String ()
-goto = do
-    dum 2
-    ldf "go"
-    ldf "to"
-    ldf "main"
-    rap 2
-    rtn
-
-    label "main"
-    ldc 1
-    ld 0 0
-    ap 1
-    rtn
-
-    label "to"
-    ld 0 0
-    ldc 1
-    sub
-    ld 1 0
-    ap 1
-    rtn
-
-    label "go"
-    ld 0 0
-    ldc 1
-    add
-    ld 1 1
-    ap 1
-    rtn
-
-cond :: GccProgram String ()
-cond = do
-    ldc 5
-    ldc 3
-    cgte
-    sel "true" "false"
-    label "true"
-    ldc 42
-    label "false"
-    ldc 23
-
+--------------------------------------------------------------------------------
+-- Helper macros
     
+fun_call :: Int -> String -> GccProgram String ()
+fun_call arity label = do
+    ldf label
+    ap arity
 
-{-
-
-main :: IO ()
--- main = putStrLn $ unlines $ codeGen stupidAI
-main = putStrLn "foo"
--}
+fun_copy :: GccProgram String ()
+fun_copy = do
+    label "copy"
+    ld 0 0
+    ld 0 0
+    rtn
 
 --------------------------------------------------------------------------------
 -- Transform string labels into proper line numbers
