@@ -6,7 +6,7 @@ version:             0.1.0.0
 -- synopsis:
 -- description:
 -- license:
-license-file:        LICENSE
+-- license-file:        LICENSE
 author:              mf, au, ja
 maintainer:          jkarni@gmail.com
 -- copyright:
@@ -23,6 +23,13 @@ executable icfpcontest2014
                      , free == 4.9
                      , ncurses == 0.2.10
                      , vector
+                     , atto-lisp
+                     , attoparsec
+                     , bytestring
+                     , process
+                     , pretty-show
+                     , string-conversions
+                     , text
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -Wall
