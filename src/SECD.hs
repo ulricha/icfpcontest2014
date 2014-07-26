@@ -115,8 +115,15 @@ sexpToGcc sexp@(AL.List secd) = do
     lexer scopes label routines insts (AL.Symbol (matchUnaryOP -> Just unaryOp) : secd) =
         lexer scopes label routines (insts ++ [unaryOp]) secd
 
-    lexer scopes label routines insts (AL.Symbol "SEL" : secd) =
-        error "sexpToGcc.SEL"
+    lexer scopes label routines insts (AL.Symbol "SEL" : AL.List nonzero : AL.List zero : secd) =
+        let nzlabel                       = show $ label
+            zlabel                        = show $ label + 1
+            (label', routines', nzinst)   = lexer scopes (label + 2) [] [] nonzero
+            (label'', routines'', zinst)  = lexer scopes label' [] [] zero
+            routines'''                   = (nzlabel, nzinst) : (zlabel, zinst)
+                                          : routines ++ routines' ++ routines''
+            insts'                        = insts ++ [sel nzlabel zlabel]
+        in lexer scopes label'' routines''' insts' secd
 
     lexer scopes label routines insts (AL.Symbol "LDF" : (AL.List [AL.List argv, AL.List body]) : secd) =
         let label'                          = label + 1
