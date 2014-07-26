@@ -5,8 +5,8 @@ import GccMacros
 
 f = putStrLn . codeGen
 
-lambdaman1 :: GccProgram String ()
-lambdaman1 = do
+lm1 :: GccProgram String ()
+lm1 = do
     ldf "process_world"
     ap 2
 
