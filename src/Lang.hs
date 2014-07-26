@@ -24,12 +24,6 @@ data Expr = Let Ident Expr
           | Var Ident
           deriving (Show)
 
-int :: Int -> Expr
-int = Lit . IntV
-
-nil :: Expr
-nil = Lit NilV
-
 data Prog = Letrec [Binding] Expr deriving (Show)
 
 data BinOp = Add
@@ -63,6 +57,25 @@ unOp o = case o of
     Car   -> car
     Cdr   -> cdr
     IsNil -> macro_isnil
+
+--------------------------------------------------------------------------------
+-- Constructors
+
+not :: Expr -> Expr
+not e = Cond (App2 Eq e (int 0)) (int 1) (int 0)
+
+and :: Expr -> Expr -> Expr
+and e1 e2 = Cond (App2 Eq e1 (int 0)) (int 0) e2
+
+or :: Expr -> Expr -> Expr
+or e1 e2 = Cond (App2 Eq e1 (int 0)) e2 (int 1)
+
+int :: Int -> Expr
+int = Lit . IntV
+
+nil :: Expr
+nil = Lit NilV
+
 
 --------------------------------------------------------------------------------
 -- SECD^WGCC compiler

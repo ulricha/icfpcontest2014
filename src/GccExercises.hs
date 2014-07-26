@@ -188,8 +188,3 @@ fun_length = do
     ldc 1
     add
     join_
-    
-
-    
-    
-
