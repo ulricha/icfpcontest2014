@@ -7,6 +7,8 @@ f = putStrLn . codeGen
 
 lm1 :: GccProgram String ()
 lm1 = do
+    ld 0 0  -- initial game state
+    ld 0 1  -- ghost code
     ldf "process_world"
     ap 2
 
