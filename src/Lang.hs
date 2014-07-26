@@ -24,22 +24,6 @@ data Expr = Let Ident Expr Expr
           | AppL Expr [Expr]
           deriving (Show)
 
-binApp :: BinOp -> Expr -> Expr -> Expr
-binApp op = App2 op
-
-instance Num Expr where
-    (+) = binApp Add
-    (-) = binApp Sub
-    (*) = binApp Mul
-    abs = undefined
-    fromInteger = Lit . IntV . fromInteger
-    signum = undefined
-
-(.>), (.>=), (.==) :: Expr -> Expr -> Expr
-(.>) = binApp Gt
-(.>=) = binApp GtE
-(.==) = binApp Eq
-
 int :: Int -> Expr
 int = Lit . IntV
 
@@ -79,6 +63,35 @@ unOp o = case o of
     Car   -> car
     Cdr   -> cdr
     IsNil -> macro_isnil
+
+--------------------------------------------------------------------------------
+-- Constructors
+
+binApp :: BinOp -> Expr -> Expr -> Expr
+binApp op = App2 op
+
+instance Num Expr where
+    (+) = binApp Add
+    (-) = binApp Sub
+    (*) = binApp Mul
+    abs = undefined
+    fromInteger = Lit . IntV . fromInteger
+    signum = undefined
+
+(.>), (.>=), (.==) :: Expr -> Expr -> Expr
+(.>) = binApp Gt
+(.>=) = binApp GtE
+(.==) = binApp Eq
+
+not_ :: Expr -> Expr
+not_ e = Cond (App2 Eq e 0) 1 0
+
+(.&&) :: Expr -> Expr -> Expr
+(.&&) e1 e2 = Cond (App2 Eq e1 0) 0 e2
+
+(.||) :: Expr -> Expr -> Expr
+(.||) e1 e2 = Cond (App2 Eq e1 0) e2 1
+
 
 --------------------------------------------------------------------------------
 -- SECD^WGCC compiler
