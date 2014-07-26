@@ -101,7 +101,6 @@ not_ e = Cond (App2 Eq e 0) 1 0
 (?) :: Expr -> (Expr, Expr) -> Expr
 cond ? (thenCase, elseCase) = Cond cond thenCase elseCase
 
-
 class FunApp f args | f -> args where
     (.$.) :: f -> args -> Expr
 
@@ -129,25 +128,26 @@ freshLabel = do
 
 -- type Compile a = StateT CompileState (GccProgram String) a
 
-type Env = [(Ident, Int)]
+type ScopeDepth = Int
+type FrameField = Int
+type Frame      = Int
+type FrameRef   = (Frame, FrameField)
+
+data Env = Env { scopeDepth  :: ScopeDepth
+               , frameCoords :: [(Ident, FrameRef)]
+               }
+
+enterScope :: [Ident] -> Compile a -> Compile a 
+enterScope args m = local (\e -> e { scopeDepth = scopeDepth e + 1 }) m
+  where
+    extendEnv e = Env { scopeDepth = d', frameCoords = allBindings }
+      where
+        d'            = scopeDepth e + 1
+        argsi         = zip args [1..]
+        localBindings = map (\(a, i) -> (a, (d', i))) argsi
+        allBindings   = frameCoords e ++ localBindings
 
 type Compile a = RWS Env [GccInst String] CompileState a
-
-{-
-if c t e =>
-<<compile c>>
-
-sel <true> <false>
-
-<true>:
-<<compile t>>
-join
-
-<false>:
-<<compile e>>
-join
-
--}
 
 compile :: Expr -> Compile [GccInst String]
 compile (Let ident e1 e2) = do
@@ -172,7 +172,7 @@ compile (Cond c t e) = do
 
 compile (Lambda args body) = do
     let argEnv = zip args [1..]
-    bodyLabel <- local (++ argEnv) $ toSection body [RTN]
+    bodyLabel <- enterScope args $ toSection body [RTN]
     return [LDF bodyLabel]
     
 compile (Lit (IntV i)) = return $ [LDC i]
@@ -180,8 +180,8 @@ compile (Lit NilV) = return $ [LDC 0xdeadbeef]
 
 compile (Var ident) = do
     -- FIXME get rid of fromJust
-    varPos <- fromJust <$> (asks $ lookup ident)
-    return $ [LD undefined varPos]
+    (frame, frameField) <- fromJust <$> (asks $ lookup ident . frameCoords)
+    return $ [LD frame frameField]
 
 compile (Lambda idents expr) = do
     error "compile.Lambda"
@@ -199,7 +199,10 @@ toSection e suffix = do
 initCompileState :: CompileState
 initCompileState = CS 0
 
+initEnv :: Env
+initEnv = Env { scopeDepth = 0, frameCoords = [] }
+
 doCompile :: Expr -> [GccInst String]
 doCompile e = main ++ sections
   where
-    (main, sections) = evalRWS (compile e) [] initCompileState
+    (main, sections) = evalRWS (compile e) initEnv initCompileState
