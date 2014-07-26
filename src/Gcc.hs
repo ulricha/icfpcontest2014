@@ -32,6 +32,7 @@ data GccCInst
     | C_RTN
     | C_DUM Int
     | C_RAP Int
+    | C_DBUG
 
 instance Show GccCInst where
     show (C_LDC n) = ("LDC " ++ show n)
@@ -54,6 +55,7 @@ instance Show GccCInst where
     show (C_RTN) = "RTN "
     show (C_DUM n) = ("DUM " ++ show n)
     show (C_RAP n) = ("RAP " ++ show n)
+    show (C_DBUG) = "DBUG "
 
 data GccInst label
     = LDC Int
@@ -76,6 +78,7 @@ data GccInst label
     | RTN
     | DUM Int
     | RAP Int
+    | DBUG
     | LABEL label
     deriving (Show)
 
@@ -148,6 +151,9 @@ dum i = liftF $ Inst (DUM i) ()
 rap :: Int -> GccProgram l ()
 rap i = liftF $ Inst (RAP i) ()
 
+dbug :: GccProgram l ()
+dbug = liftF $ Inst DBUG ()
+
 label :: l -> GccProgram l ()
 label l = liftF $ Inst (LABEL l) ()
 
@@ -214,10 +220,18 @@ enumInsts insts = reverse acc
 -- | Associate every label with the line number of its following
 -- instruction.
 assocLabelLine :: [Either (Line, GccInst String) String] -> [(String, Line)]
-assocLabelLine (Left _ : is)                   = assocLabelLine is
-assocLabelLine (Right lab : Left (line, _) : is) = (lab, line) : assocLabelLine is
-assocLabelLine []                              = []
-assocLabelLine _                               = error "assocLabelLine"
+assocLabelLine insts = if null bad then result else error $ "assocLabelLine: dupliate labels: " ++ show bad
+  where
+    result = assocLabelLine' insts
+    ls = map fst result
+    bad = sort ls \\ nub (sort ls)
+
+assocLabelLine' :: [Either (Line, GccInst String) String] -> [(String, Line)]
+assocLabelLine' (Left _ : is)                   = assocLabelLine is
+assocLabelLine' (Right lab : Left (line, _) : is) = (lab, line) : assocLabelLine is
+assocLabelLine' []                              = []
+assocLabelLine' _                               = error "assocLabelLine: trailing label"
+
 
 mapLabels :: [(String, Line)] -> [GccInst String] -> Maybe [GccCInst]
 mapLabels _   [] = pure []
@@ -249,6 +263,7 @@ mapLabels env (JOIN : insts) = (:) C_JOIN <$> mapLabels env insts
 mapLabels env (RTN : insts) = (:) C_RTN <$> mapLabels env insts
 mapLabels env (DUM i : insts) = (:) (C_DUM i) <$> mapLabels env insts
 mapLabels env (RAP i : insts) = (:) (C_RAP i) <$> mapLabels env insts
+mapLabels env (DBUG : insts) = (:) C_DBUG <$> mapLabels env insts
 
 -- | Turn string labels into proper line numbers
 lineLabels :: [GccInst String] -> Maybe [GccCInst]
