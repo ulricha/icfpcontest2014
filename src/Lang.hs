@@ -80,14 +80,15 @@ instance Num Expr where
 nil :: Expr
 nil = Lit NilV
 
-not :: Expr -> Expr
-not e = Cond (App2 Eq e 0) 1 0
+not_ :: Expr -> Expr
+not_ e = Cond (App2 Eq e 0) 1 0
+ 
+(.&&) :: Expr -> Expr -> Expr
+(.&&) e1 e2 = Cond (App2 Eq e1 0) 0 e2
+ 
+(.||) :: Expr -> Expr -> Expr
+(.||) e1 e2 = Cond (App2 Eq e1 0) e2 1
 
-and :: Expr -> Expr -> Expr
-and e1 e2 = Cond (App2 Eq e1 0) 0 e2
-
-or :: Expr -> Expr -> Expr
-or e1 e2 = Cond (App2 Eq e1 0) e2 1
 
 --------------------------------------------------------------------------------
 -- SECD^WGCC compiler
