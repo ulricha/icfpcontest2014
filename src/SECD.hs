@@ -192,7 +192,7 @@ sexpToGcc sexp@(AL.List secd) = do
 
 
 x = do
-    scheme_sample :: SBS <- SBS.readFile "../scheme/3.scm"
+    scheme_sample :: SBS <- SBS.readFile "../scheme/4.scm"
     SBS.putStrLn scheme_sample
     schemeToSECD scheme_sample >>= putStrLn . ppShow
     schemeToGcc scheme_sample >>= \ (Right prog) -> putStrLn . codeGen $ prog

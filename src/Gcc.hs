@@ -167,8 +167,12 @@ instList :: GccProgram l a -> [GccInst l]
 instList (Pure _)          = []
 instList (Free (Inst i c)) = i : instList c
 
-codeGen :: GccProgram String a -> String
-codeGen p = intercalate "\n" $ map show $ fromJust $ lineLabels $ instList p
+codeGen :: (Show a) => GccProgram String a -> String
+codeGen p = intercalate "\n" $ map show $ fromEither_ $ lineLabels $ instList p
+  where
+    fromEither_ (Right x) = x
+    fromEither_ (Left e) = error $ "codeGen: lineLabels gave Nothing\nmsg:\n" ++ e ++ "\ninput:\n" ++ show p
+
 
 ----------------------------------------------------------------------
 -- run time
@@ -233,11 +237,12 @@ assocLabelLine' []                              = []
 assocLabelLine' _                               = error "assocLabelLine: trailing label"
 
 
-mapLabels :: [(String, Line)] -> [GccInst String] -> Maybe [GccCInst]
+mapLabels :: [(String, Line)] -> [GccInst String] -> Either String [GccCInst]
 mapLabels _   [] = pure []
 mapLabels env (LABEL _ : insts) = mapLabels env insts
 mapLabels env (LDF lab : insts) = do
-    line   <- lookup lab env
+    line   <- maybe (Left ("mapLabels: unknown function name " ++ show lab)) Right
+            $ lookup lab env
     cinsts <- mapLabels env insts
     return $ C_LDF line : cinsts
 mapLabels env (AP i : insts) = (:) (C_AP i) <$> mapLabels env insts
@@ -255,8 +260,10 @@ mapLabels env (CONS : insts) = (:) C_CONS <$> mapLabels env insts
 mapLabels env (CAR : insts) = (:) C_CAR <$> mapLabels env insts
 mapLabels env (CDR : insts) = (:) C_CDR <$> mapLabels env insts
 mapLabels env (SEL t f : insts) = do
-    lineTrue <- lookup t env
-    lineFalse <- lookup f env
+    lineTrue <- maybe (Left ("mapLabels: unknown 'true' branch name " ++ show t)) Right
+              $ lookup t env
+    lineFalse <- maybe (Left ("mapLabels: unknown 'false' branch name " ++ show f)) Right
+               $ lookup f env
     cinsts <- mapLabels env insts
     return $ C_SEL lineTrue lineFalse : cinsts
 mapLabels env (JOIN : insts) = (:) C_JOIN <$> mapLabels env insts
@@ -266,7 +273,7 @@ mapLabels env (RAP i : insts) = (:) (C_RAP i) <$> mapLabels env insts
 mapLabels env (DBUG : insts) = (:) C_DBUG <$> mapLabels env insts
 
 -- | Turn string labels into proper line numbers
-lineLabels :: [GccInst String] -> Maybe [GccCInst]
+lineLabels :: [GccInst String] -> Either String [GccCInst]
 lineLabels insts = mapLabels lineEnv insts
   where
     lineEnv = assocLabelLine $ enumInsts insts
