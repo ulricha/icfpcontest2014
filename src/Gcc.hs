@@ -219,11 +219,19 @@ enumInsts insts = reverse acc
 
 -- | Associate every label with the line number of its following
 -- instruction.
-assocLabelLine :: [Either (Line, GccInst String) String] -> [(String, Line)]
-assocLabelLine (Left _ : is)                   = assocLabelLine is
-assocLabelLine (Right lab : Left (line, _) : is) = (lab, line) : assocLabelLine is
-assocLabelLine []                              = []
-assocLabelLine _                               = error "assocLabelLine"
+assocLabelLine' :: [Either (Line, GccInst String) String] -> [(String, Line)]
+assocLabelLine insts = if null bad then result else error $ "assocLabelLine: dupliate labels: " ++ show bad
+  where
+    result = assocLabelLine' insts
+    ls = map fst result
+    bad = sort ls \\ nub (sort ls)
+
+assocLabelLine' :: [Either (Line, GccInst String) String] -> [(String, Line)]
+assocLabelLine' (Left _ : is)                   = assocLabelLine is
+assocLabelLine' (Right lab : Left (line, _) : is) = (lab, line) : assocLabelLine is
+assocLabelLine' []                              = []
+assocLabelLine' _                               = error "assocLabelLine: trailing label"
+
 
 mapLabels :: [(String, Line)] -> [GccInst String] -> Maybe [GccCInst]
 mapLabels _   [] = pure []
