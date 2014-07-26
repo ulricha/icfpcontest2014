@@ -1,0 +1,48 @@
+(lambda (iwstate gcode)
+ (let (
+ (cons 0
+  (lambda (aistate wstate)
+   '(0 3))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (nth n l)
+  (if (or (> n (length l)) (< n 0))
+    (error "Index out of bounds.")
+    (if (eq? n 0)
+      (car l)
+      (nth (- n 1) (cdr l)))))
+
+(define (map proc lis)
+   (cond ((null? lis)
+          '())
+         ((pair? lis)
+          (cons (proc (car lis))
+                (map proc (cdr lis))))))
+
+;; n,m element of a list of lists
+(define (nthSq n m l)
+ (nth m (nth n)))
+
+;; Get the content of the map around a position - i.e., directly above, to the
+;; right, left, and beneath it
+(define (map-around map loc)
+ (let ((up '((car loc) ((- (cdr loc) 1))))
+       (down '((car loc) ((+ (cdr loc) 1))))
+       (left '((- (car loc) 1) ((cdr loc))))
+       (right '((+ (car loc) 1) ((cdr loc)))))
+  (map (lambda (x) (nthSq (car x) (cdr x))) '(up down left right))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+   
+
+ LDF 4
+ LDC 0 
+ CONS 
+ RTN
+ LDC 0 
+ LDC 3  
+ CONS
+ RTN
