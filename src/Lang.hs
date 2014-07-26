@@ -10,18 +10,18 @@ import GccMacros
 
 type Ident = String
 
-type Binding = (Ident, [Ident], Expr)
-
 data Val = IntV Int
          | NilV
          deriving (Show)
 
-data Expr = Let Ident Expr
+data Expr = Let Ident Expr Expr
           | App2 BinOp Expr Expr
           | App1 UnOp Expr
           | Cond Expr Expr Expr
           | Lit Val
           | Var Ident
+          | Lambda [Ident] Expr
+          | AppL Expr [Expr]
           deriving (Show)
 
 binApp :: BinOp -> Expr -> Expr -> Expr
@@ -46,7 +46,7 @@ int = Lit . IntV
 nil :: Expr
 nil = Lit NilV
 
-data Prog = Letrec [Binding] Expr deriving (Show)
+data Prog = Letrec [(Ident, Expr)] Expr deriving (Show)
 
 data BinOp = Add
            | Sub
@@ -110,8 +110,8 @@ join
 -}
 
 compile :: Expr -> Compile ()
-compile (Let ident expr) = do
-    error "compile.Let"
+compile (Let ident e1 e2) = do
+    compile $ AppL (Lambda [ident] e2) [e1]
 
 compile (App2 o e1 e2) = do
     compile e1
@@ -142,6 +142,11 @@ compile (Lit NilV) = lift macro_nil
 compile (Var ident) = do
     error "compile.Var"
 
+compile (Lambda idents expr) = do
+    error "compile.Lambda"
+
+compile (AppL e1 e2) = do
+    error "compile.AppL"
 
 initCompileState :: CompileState
 initCompileState = CS 0
