@@ -82,15 +82,20 @@ type Routine = (String, GccProg ())
 
 sexpToGcc :: AL.Lisp -> GccProg ()
 sexpToGcc sexp@(AL.List secd) = do
-      sequence $ inverseCond insts
+      insts
       flipStackAsm
       mapM_ (\ (n, r) -> label n >> r) $ routines
   where
-    (routines, insts) = lexer 0 [] [] secd
+    (_, routines, insts) = lexer 0 [] [] secd
 
-    lexer :: Int -> [Routine] -> [GccProg ()] -> [AL.Lisp] -> ([Routine], [GccProg ()])
+    lexer :: Int -> [Routine] -> [GccProg ()] -> [AL.Lisp] -> (Int, [Routine], GccProg ())
     lexer label routines insts (AL.Symbol "LDC" : AL.Number i : secd) =
         lexer label routines (insts ++ [ldc (round i)]) secd
+
+    -- LDC may also receive '()' as argument in secd, but in gcc
+    -- forces us to make up an integer.
+    lexer label routines insts (AL.Symbol "LDC" : AL.List [] : secd) =
+        lexer label routines (insts ++ [ldc 0xdeadbeef]) secd
 
     lexer label routines insts (AL.Symbol "LD" : AL.Number i1 : AL.Number i2 : secd) =
         lexer label routines (insts ++ [ld (round i1) (round i2)]) secd
@@ -101,15 +106,20 @@ sexpToGcc sexp@(AL.List secd) = do
     lexer label routines insts (AL.Symbol "SEL" : secd) =
         error "sexpToGcc.SEL"
 
-    lexer label routines insts (AL.Symbol "LDF" : (AL.List [AL.List _, fun]) : secd) =
+    lexer label routines insts (AL.Symbol "LDF" : (AL.List [AL.List _, AL.List fun]) : secd) =
         -- FIXME: if function arguments are actually used, this won't work any more!
-        let label'     = label + 1
-            routines'  = (show label, sexpToGcc fun) : routines
-            insts'     = insts ++ [ldf (show label)]
-        in lexer label' routines' insts' secd
+        let label'                          = label + 1
+            (label'', routines', subinsts)  = lexer label' [] [] fun
+            routines''                      = (show label, subinsts) : routines ++ routines'
+            insts'                          = insts ++ [ldf (show label)]
+        in lexer label'' routines'' insts' secd
 
     lexer label routines insts (AL.Symbol "AP" : AL.Number i : secd) =
         lexer label routines (insts ++ [ap (round i)]) secd
+
+    -- in secd, "ap" has a variable list of parameters!  :(
+    lexer label routines insts (AL.Symbol "AP" : secd) =
+        lexer label routines (insts ++ [{- FIXME -}]) secd
 
     lexer label routines insts (AL.Symbol "DUM" : AL.Number i : secd) =
         lexer label routines (insts ++ [dum (round i)]) secd
@@ -117,7 +127,7 @@ sexpToGcc sexp@(AL.List secd) = do
     lexer label routines insts (AL.Symbol "RAP" : AL.Number i : secd) =
         lexer label routines (insts ++ [rap (round i)]) secd
 
-    lexer label routines insts [] = (routines, insts)
+    lexer label routines insts [] = (label, routines, sequence_ $ inverseCond insts)
 
     lexer l r i x = error $ "sexpToGcc: unmatched pattern!\n" ++ ppShow (l, r, i, x)
 
@@ -160,4 +170,6 @@ sexpToGcc sexp@(AL.List secd) = do
 --- error (ppShow sexp ++ "\n\n" ++ prettyShow sexp)
 
 
-x = schemeToGcc scheme_sample
+x = do
+    schemeToSECD scheme_sample >>= putStrLn . ppShow
+    schemeToGcc scheme_sample >>= \ (Right prog) -> putStrLn . codeGen $ prog
