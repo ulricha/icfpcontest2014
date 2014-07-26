@@ -32,6 +32,7 @@ data GccCInst
     | C_RTN
     | C_DUM Int
     | C_RAP Int
+    | C_DBUG
 
 instance Show GccCInst where
     show (C_LDC n) = ("LDC " ++ show n)
@@ -54,6 +55,7 @@ instance Show GccCInst where
     show (C_RTN) = "RTN "
     show (C_DUM n) = ("DUM " ++ show n)
     show (C_RAP n) = ("RAP " ++ show n)
+    show (C_DBUG) = "DBUG "
 
 data GccInst label
     = LDC Int
@@ -76,6 +78,7 @@ data GccInst label
     | RTN
     | DUM Int
     | RAP Int
+    | DBUG
     | LABEL label
     deriving (Show)
 
@@ -147,6 +150,9 @@ dum i = liftF $ Inst (DUM i) ()
 
 rap :: Int -> GccProgram l ()
 rap i = liftF $ Inst (RAP i) ()
+
+dbug :: GccProgram l ()
+dbug = liftF $ Inst DBUG ()
 
 label :: l -> GccProgram l ()
 label l = liftF $ Inst (LABEL l) ()
@@ -249,6 +255,7 @@ mapLabels env (JOIN : insts) = (:) C_JOIN <$> mapLabels env insts
 mapLabels env (RTN : insts) = (:) C_RTN <$> mapLabels env insts
 mapLabels env (DUM i : insts) = (:) (C_DUM i) <$> mapLabels env insts
 mapLabels env (RAP i : insts) = (:) (C_RAP i) <$> mapLabels env insts
+mapLabels env (DBUG : insts) = (:) C_DBUG <$> mapLabels env insts
 
 -- | Turn string labels into proper line numbers
 lineLabels :: [GccInst String] -> Maybe [GccCInst]
