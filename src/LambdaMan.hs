@@ -13,7 +13,7 @@ lambdaman1 = do
     ldc 0  -- state
     ldf "step_func"  -- step function closure
     cons
-    stop
+    rtn
 
     label "process_world"
     rtn
