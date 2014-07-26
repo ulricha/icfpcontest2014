@@ -222,7 +222,7 @@ initEnv :: Env
 initEnv = []
 
 doCompile :: Expr -> [GccInst]
-doCompile e = main ++ sections
+doCompile e = main ++ [RTN] ++ sections
   where
     (main, sections) = evalRWS (compile e) initEnv initCompileState
 
