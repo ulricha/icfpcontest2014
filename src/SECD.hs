@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module SECD where
 
@@ -47,11 +48,11 @@ secdToGcc = fmap sexpToGcc . eitherResult . parse AL.lisp
 
 scheme_sample :: SC.SBS
 scheme_sample = mconcat $
-    "(lambda (iwstate gcode)" :
+    "((lambda (iwstate gcode)" :
     " (let (" :
     " (cons 0" :
     "  (lambda (aistate wstate)" :
-    "   '(0 3))))))" :
+    "   '(0 3)))))) 3 3)" :
     []
 
 
@@ -61,7 +62,7 @@ prettyShow :: AL.Lisp -> String
 prettyShow = f
   where
     f (AL.Symbol a) = T.unpack a
-    f (AL.String t)  = show (T.unpack t)
+    f (AL.String t) = show (T.unpack t)
     f (AL.Number n) = show n
     f (AL.List l) = "(" ++ intercalate " " (map f l) ++ ")"
     f (AL.DotList l d) = "(" ++ intercalate " " (map f l) ++ " . " ++ f d ++ ")"
@@ -72,12 +73,85 @@ prettyShow = f
 ----------------------------------------------------------------------
 
 -- order of cons
--- definition of ap
 -- inline lambdas => labels
 -- align argument frame addresses
 
-sexpToGcc :: AL.Lisp -> GccProgram String ()
-sexpToGcc sexp = error (ppShow sexp ++ "\n\n" ++ prettyShow sexp)
+sexpToGcc :: AL.Lisp -> GccProg ()
+sexpToGcc sexp@(AL.List insts) = f [] insts
+  where
+    f :: [(String, GccProg ())] -> [AL.Lisp] -> GccProg ()
+    f routines (AL.Symbol "LDC" : AL.Number i : insts) =
+        ldc (round i) >> f routines insts
+
+    f routines (AL.Symbol "LD" : AL.Number i1 : AL.Number i2 : insts) =
+        ld (round i1) (round i2) >> f routines insts
+
+    f routines (AL.Symbol (g -> Just unaryOp) : insts) =
+        unaryOp >> f routines insts
+
+    f routines (AL.Symbol "SEL" : insts) =
+        error "sexpToGcc.SEL"
+
+    f routines (AL.Symbol "JOIN" : insts) =
+        join_ >> f routines insts
+
+    f routines (AL.Symbol "LDF" : insts) =
+        error $ "sexpToGcc.LDF\n" ++ ppShow insts
+
+    f routines (AL.Symbol "AP" : AL.Number i : insts) =
+        ap (round i) >> f routines insts
+
+    f routines (AL.Symbol "DUM" : AL.Number i : insts) =
+        dum (round i) >> f routines insts
+
+    f routines (AL.Symbol "RAP" : AL.Number i : insts) =
+        rap (round i) >> f routines insts
+
+    f routines [] = rtn
+
+    g :: T.Text -> Maybe (GccProg ())
+    g "ADD" = Just add
+    g "SUB" = Just sub
+    g "MUL" = Just mul
+    g "DIV" = Just Gcc.div
+    g "CEQ" = Just ceq
+    g "CGT" = Just cgt
+    g "CGTE" = Just cgte
+    g "ATOM" = Just atom
+    g "CONS" = Just cons
+    g "CAR" = Just car
+    g "CDR" = Just cdr
+    g "RTN" = Just rtn
+    g _ = Nothing
+
+
+{-
+  , Symbol "LDF"
+  , List
+      [ List [ Symbol "iwstate" , Symbol "gcode" ]
+      , List
+          [ Symbol "LDC"
+          , List []
+          , Symbol "LDC"
+          , Number 0
+          , Symbol "CONS"
+          , Symbol "LDF"
+          , List
+              [ List [ Symbol "cons" ]
+              , List [ Symbol "LDC" , List [] , Symbol "RTN" ]
+              ]
+          , Symbol "AP"
+          , Symbol "RTN"
+          ]
+      ]
+  , Symbol "AP"
+  , Number 2
+  ]
+
+-}
+
+
+--- error (ppShow sexp ++ "\n\n" ++ prettyShow sexp)
 
 
 x = schemeToGcc scheme_sample
