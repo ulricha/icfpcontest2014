@@ -3,7 +3,7 @@ module GccExercises where
 import Gcc
 import GccMacros
 
-goto :: GccProgram String ()
+goto :: GccProgram ()
 goto = do
     dum 2
     ldf "go"
@@ -34,7 +34,7 @@ goto = do
     ap 1
     rtn
 
-cond :: GccProgram String ()
+cond :: GccProgram ()
 cond = do
     ldc 5
     ldc 3
@@ -52,7 +52,7 @@ mklisths :: Int -> [Int]
 mklisths i =
     if i == 0 then [] else i : mklisths (i - 1)
 
-isempty :: GccProgram String ()
+isempty :: GccProgram ()
 isempty = do
     ldc 23
     ldc 42
@@ -65,7 +65,7 @@ isempty = do
     rtn
     fun_copy
 
-addrec :: GccProgram String ()
+addrec :: GccProgram ()
 addrec = do
     ldc 1
     ldf "add"
@@ -90,7 +90,7 @@ addrec = do
 
 -- Faculty
 
-fac_test :: Int -> GccProgram String ()
+fac_test :: Int -> GccProgram ()
 fac_test i = do
     ldc i
     fun_call 1 "fac"
@@ -98,7 +98,7 @@ fac_test i = do
     fun_fac
 
 -- fac n = if n == 0 then 1 else n * fac (n - 1)
-fun_fac :: GccProgram String ()
+fun_fac :: GccProgram ()
 fun_fac = do
     label "fac"
     ld 0 0
@@ -120,7 +120,7 @@ fun_fac = do
 
 -- list of integers
 
-intlist_test :: Int -> GccProgram String ()
+intlist_test :: Int -> GccProgram ()
 intlist_test i = do
     ldc i
     fun_call 1 "intlist"
@@ -128,7 +128,7 @@ intlist_test i = do
     fun_intlist
 
 -- intlist i = if i = 0 then [] else i : intlist (i - 1)
-fun_intlist :: GccProgram String ()
+fun_intlist :: GccProgram ()
 fun_intlist = do
     label "intlist"
     ld 0 0
@@ -156,7 +156,7 @@ fun_intlist = do
     join_
 
 -- list length
-length_test :: Int -> GccProgram String ()
+length_test :: Int -> GccProgram ()
 length_test i = do
     ldc i
 
@@ -168,7 +168,7 @@ length_test i = do
     fun_length
     
 -- length xs = if null xs then 0 else 1 + length tail xs
-fun_length :: GccProgram String ()
+fun_length :: GccProgram ()
 fun_length = do
     label "length"
 

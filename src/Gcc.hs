@@ -1,4 +1,5 @@
-{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFunctor     #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Gcc where
 
@@ -57,7 +58,9 @@ instance Show GccCInst where
     show (C_RAP n) = ("RAP " ++ show n)
     show (C_DBUG) = "DBUG "
 
-data GccInst label
+type Label = String
+
+data GccInst
     = LDC Int
     | LD Int Int
     | ADD
@@ -71,110 +74,135 @@ data GccInst label
     | CONS
     | CAR
     | CDR
-    | SEL label label
+    | SEL Label Label
     | JOIN
-    | LDF label
+    | LDF Label
     | AP Int
     | RTN
     | DUM Int
     | RAP Int
     | DBUG
-    | LABEL label
-    deriving (Show)
+    | LABEL Label
 
-data GccInstruction label cont
-    = Inst (GccInst label) cont
+instance Show GccInst where
+    show (LDC n) = ("LDC " ++ show n)
+    show (LD n i) = ("LD " ++ show n ++ " " ++ show i)
+    show (ADD) = "ADD "
+    show (SUB) = "SUB "
+    show (DIV) = "DIV "
+    show (MUL) = "MUL "
+    show (CEQ) = "CEQ "
+    show (CGT) = "CGT "
+    show (CGTE) = "CGTE "
+    show (ATOM) = "ATOM "
+    show (CONS) = "CONS "
+    show (CAR) = "CAR "
+    show (CDR) = "CDR "
+    show (SEL t f) = "SEL " ++ show t ++ " " ++ show f
+    show (JOIN) = "JOIN "
+    show (LDF n) = ("LDF " ++ show n)
+    show (AP n) = ("AP " ++ show n)
+    show (RTN) = "RTN "
+    show (DUM n) = ("DUM " ++ show n)
+    show (RAP n) = ("RAP " ++ show n)
+    show (DBUG) = "DBUG "
+    show (LABEL l) = l ++ ":"
+
+data GccInstruction cont
+    = Inst GccInst cont
     -- | Stop  (removed because the implementation is broken and according to specs it is deprecated)
     deriving (Show, Functor)
 
 
-type GccProgram l = Free (GccInstruction l)
-type GccProg = GccProgram String
+type GccProgram = Free GccInstruction
+type GccProg = GccProgram
 
-ldc :: Int -> GccProgram l ()
+ldc :: Int -> GccProgram ()
 ldc n = liftF $ Inst (LDC n) ()
 
-ld :: Int -> Int -> GccProgram l ()
+ld :: Int -> Int -> GccProgram ()
 ld n i = liftF $ Inst (LD n i) ()
 
-add :: GccProgram l ()
+add :: GccProgram ()
 add = liftF $ Inst ADD ()
 
-sub :: GccProgram l ()
+sub :: GccProgram ()
 sub = liftF $ Inst SUB ()
 
-mul :: GccProgram l ()
+mul :: GccProgram ()
 mul = liftF $ Inst MUL ()
 
-div_ :: GccProgram l ()
+div_ :: GccProgram ()
 div_ = liftF $ Inst DIV ()
 
-ceq :: GccProgram l ()
+ceq :: GccProgram ()
 ceq = liftF $ Inst CEQ ()
 
-cgt :: GccProgram l ()
+cgt :: GccProgram ()
 cgt = liftF $ Inst CGT ()
 
-cgte :: GccProgram l ()
+cgte :: GccProgram ()
 cgte = liftF $ Inst CGTE ()
 
-atom :: GccProgram l ()
+atom :: GccProgram ()
 atom = liftF $ Inst ATOM ()
 
-cons :: GccProgram l ()
+cons :: GccProgram ()
 cons = liftF $ Inst CONS ()
 
-car :: GccProgram l ()
+car :: GccProgram ()
 car = liftF $ Inst CAR ()
 
-cdr :: GccProgram l ()
+cdr :: GccProgram ()
 cdr = liftF $ Inst CDR ()
 
-sel :: l -> l -> GccProgram l ()
+sel :: Label -> Label -> GccProgram ()
 sel t f = liftF $ Inst (SEL t f) ()
 
-join_ :: GccProgram l ()
+join_ :: GccProgram ()
 join_ = liftF $ Inst JOIN ()
 
-ldf :: l -> GccProgram l ()
+ldf :: Label -> GccProgram ()
 ldf i = liftF $ Inst (LDF i) ()
 
-ap :: Int -> GccProgram l ()
+ap :: Int -> GccProgram ()
 ap i = liftF $ Inst (AP i) ()
 
-rtn :: GccProgram l ()
+rtn :: GccProgram ()
 rtn = liftF $ Inst RTN ()
 
-dum :: Int -> GccProgram l ()
+dum :: Int -> GccProgram ()
 dum i = liftF $ Inst (DUM i) ()
 
-rap :: Int -> GccProgram l ()
+rap :: Int -> GccProgram ()
 rap i = liftF $ Inst (RAP i) ()
 
-dbug :: GccProgram l ()
+dbug :: GccProgram ()
 dbug = liftF $ Inst DBUG ()
 
-label :: l -> GccProgram l ()
+label :: Label -> GccProgram ()
 label l = liftF $ Inst (LABEL l) ()
-
 
 
 --------------------------------------------------------------------------
 -- CodeGen
 --------------------------------------------------------------------------
 
-instList :: GccProgram l a -> [GccInst l]
+instList :: GccProgram a -> [GccInst]
 instList (Pure _)          = []
 instList (Free (Inst i c)) = i : instList c
 
-codeGen' :: GccProgram String a -> String
+codeGen' :: GccProgram a -> String
 codeGen' p = intercalate "\n" $ map show $ fromJust $ lineLabels $ instList p
 
-codeGen :: [GccInst String] -> String
+codeGen :: [GccInst] -> String
 codeGen p = intercalate "\n" $ map show $ fromJust $ lineLabels p
 
-printCode :: [GccInst String] -> IO ()
+printCode :: [GccInst] -> IO ()
 printCode p = putStrLn $ codeGen p
+
+printLabelCode :: [GccInst] -> IO ()
+printLabelCode p = putStrLn $ intercalate "\n" $ map show p
 
 ----------------------------------------------------------------------
 -- run time
@@ -196,7 +224,7 @@ data GccProgState = GPS { ds :: DataStack
 -- docks
 ----------------------------------------------------------------------
 
-stupidAI :: GccProgram String ()
+stupidAI :: GccProgram ()
 stupidAI = do
     ldc 23
     ldc 42
@@ -215,7 +243,7 @@ stupidAI = do
 --------------------------------------------------------------------------------
 -- Transform string labels into proper line numbers
 
-enumInsts :: [GccInst String] -> [Either (Line, GccInst String) String]
+enumInsts :: [GccInst] -> [Either (Line, GccInst) String]
 enumInsts insts = reverse acc
   where
     (acc, _) = foldl' enumInst ([], 0) insts
@@ -225,21 +253,21 @@ enumInsts insts = reverse acc
 
 -- | Associate every label with the line number of its following
 -- instruction.
-assocLabelLine :: [Either (Line, GccInst String) String] -> [(String, Line)]
+assocLabelLine :: [Either (Line, GccInst) String] -> [(String, Line)]
 assocLabelLine insts = if null bad then result else error $ "assocLabelLine: dupliate labels: " ++ show bad
   where
     result = assocLabelLine' insts
     ls = map fst result
     bad = sort ls \\ nub (sort ls)
 
-assocLabelLine' :: [Either (Line, GccInst String) String] -> [(String, Line)]
+assocLabelLine' :: [Either (Line, GccInst) String] -> [(String, Line)]
 assocLabelLine' (Left _ : is)                   = assocLabelLine is
 assocLabelLine' (Right lab : Left (line, _) : is) = (lab, line) : assocLabelLine is
 assocLabelLine' []                              = []
 assocLabelLine' _                               = error "assocLabelLine: trailing label"
 
 
-mapLabels :: [(String, Line)] -> [GccInst String] -> Maybe [GccCInst]
+mapLabels :: [(String, Line)] -> [GccInst] -> Maybe [GccCInst]
 mapLabels _   [] = pure []
 mapLabels env (LABEL _ : insts) = mapLabels env insts
 mapLabels env (LDF lab : insts) = do
@@ -272,7 +300,7 @@ mapLabels env (RAP i : insts) = (:) (C_RAP i) <$> mapLabels env insts
 mapLabels env (DBUG : insts) = (:) C_DBUG <$> mapLabels env insts
 
 -- | Turn string labels into proper line numbers
-lineLabels :: [GccInst String] -> Maybe [GccCInst]
+lineLabels :: [GccInst] -> Maybe [GccCInst]
 lineLabels insts = mapLabels lineEnv insts
   where
     lineEnv = assocLabelLine $ enumInsts insts

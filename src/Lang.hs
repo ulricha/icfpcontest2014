@@ -1,8 +1,9 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, FunctionalDependencies, OverloadedStrings #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE OverloadedStrings      #-}
 
 module Lang where
-
-import Debug.Trace
 
 import Control.Monad.RWS
 import Data.Maybe
@@ -55,7 +56,7 @@ data UnOp = Car
           | IsNil
           deriving (Show)
 
-binOp :: BinOp -> GccInst String
+binOp :: BinOp -> GccInst
 binOp o = case o of
     Add  -> ADD
     Sub  -> SUB
@@ -66,7 +67,7 @@ binOp o = case o of
     GtE  -> CGTE
     Cons -> CONS
 
-unOp :: UnOp -> GccInst String
+unOp :: UnOp -> GccInst
 unOp o = case o of
     Car   -> CAR
     Cdr   -> CDR
@@ -164,9 +165,9 @@ searchFrames name env = go 0 env name
 lookupEnv :: Ident -> Compile (Maybe FrameRef)
 lookupEnv name = asks (searchFrames name)
 
-type Compile a = RWS Env [GccInst String] CompileState a
+type Compile a = RWS Env [GccInst] CompileState a
 
-compile :: Expr -> Compile [GccInst String]
+compile :: Expr -> Compile [GccInst]
 compile (Let ident e1 e2) = do
     compile $ AppL (Lambda [ident] e2) [e1]
 
@@ -200,13 +201,14 @@ compile (Var name) = do
     (frame, frameField) <- fromJust <$> lookupEnv name
     return $ [LD frame frameField]
 
-compile (Lambda idents expr) = do
-    error "compile.Lambda"
-
-compile (AppL e1 e2) = do
-    error "compile.AppL"
-
-toSection :: Expr -> [GccInst String] -> Compile String
+compile (AppL fun es) = do
+    -- Note: partial application is not allowed
+    let arity = length es
+    argsCode <- concat <$> mapM compile es
+    funCode  <- compile fun
+    return $ argsCode ++ funCode ++ [AP arity]
+    
+toSection :: Expr -> [GccInst] -> Compile String
 toSection e suffix = do
     lab     <- freshLabel
     section <- compile e
@@ -219,7 +221,10 @@ initCompileState = CS 0
 initEnv :: Env
 initEnv = []
 
-doCompile :: Expr -> [GccInst String]
+doCompile :: Expr -> [GccInst]
 doCompile e = main ++ sections
   where
     (main, sections) = evalRWS (compile e) initEnv initCompileState
+
+test1 :: Expr
+test1 = Let "f" (Lambda ["x"] ("x" + "x")) (Var "f" .$. [42])
