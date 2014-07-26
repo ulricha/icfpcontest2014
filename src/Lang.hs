@@ -2,6 +2,8 @@
 
 module Lang where
 
+import Debug.Trace
+
 import Control.Monad.RWS
 import Data.Maybe
 import Control.Applicative
@@ -115,6 +117,7 @@ instance FunApp Expr [Expr] where
 
 instance IsString Expr where
     fromString = Var
+
 --------------------------------------------------------------------------------
 -- SECD^WGCC compiler
 
@@ -126,26 +129,40 @@ freshLabel = do
     put $ s { labelSupply = labelSupply s + 1 }
     return $ "label" ++ show (labelSupply s)
 
--- type Compile a = StateT CompileState (GccProgram String) a
+--------------------------------------------------------------------------------
+-- Environments
+
 
 type ScopeDepth = Int
 type FrameField = Int
 type Frame      = Int
 type FrameRef   = (Frame, FrameField)
 
-data Env = Env { scopeDepth  :: ScopeDepth
-               , frameCoords :: [(Ident, FrameRef)]
-               }
+type EnvFrame = [(Ident, ScopeDepth -> FrameRef)]
+
+type Env = [EnvFrame]
 
 enterScope :: [Ident] -> Compile a -> Compile a 
-enterScope args m = local (\e -> e { scopeDepth = scopeDepth e + 1 }) m
+enterScope args m = local (\e -> extendEnv e) m
   where
-    extendEnv e = Env { scopeDepth = d', frameCoords = allBindings }
-      where
-        d'            = scopeDepth e + 1
-        argsi         = zip args [1..]
-        localBindings = map (\(a, i) -> (a, (d', i))) argsi
-        allBindings   = frameCoords e ++ localBindings
+    extendEnv frames = 
+      let localFrame = zipWith (\a i -> (a, \d -> (d, i))) args [0..]
+      in localFrame : frames
+
+enterRecScope = undefined
+
+searchFrames :: Ident -> Env -> Maybe FrameRef
+searchFrames name env = go 0 env name
+  where
+    go :: ScopeDepth -> Env -> Ident -> Maybe FrameRef
+    go i (frame : frames) name = 
+        case lookup name frame of
+            Just ref -> Just $ ref i
+            Nothing  -> go (i + 1) frames name
+    go _ [] _ = Nothing
+
+lookupEnv :: Ident -> Compile (Maybe FrameRef)
+lookupEnv name = asks (searchFrames name)
 
 type Compile a = RWS Env [GccInst String] CompileState a
 
@@ -156,11 +173,11 @@ compile (Let ident e1 e2) = do
 compile (App2 o e1 e2) = do
     c1 <- compile e1
     c2 <- compile e2
-    return $ binOp o : (c1 ++ c2)
+    return $ c1 ++ c2 ++ [binOp o]
 
 compile (App1 o e) = do
     c <- compile e
-    return $ unOp o : c
+    return $ c ++ [unOp o]
 
 compile (Cond c t e) = do
     cc <- compile c
@@ -178,9 +195,9 @@ compile (Lambda args body) = do
 compile (Lit (IntV i)) = return $ [LDC i]
 compile (Lit NilV) = return $ [LDC 0xdeadbeef]
 
-compile (Var ident) = do
+compile (Var name) = do
     -- FIXME get rid of fromJust
-    (frame, frameField) <- fromJust <$> (asks $ lookup ident . frameCoords)
+    (frame, frameField) <- fromJust <$> lookupEnv name
     return $ [LD frame frameField]
 
 compile (Lambda idents expr) = do
@@ -200,7 +217,7 @@ initCompileState :: CompileState
 initCompileState = CS 0
 
 initEnv :: Env
-initEnv = Env { scopeDepth = 0, frameCoords = [] }
+initEnv = []
 
 doCompile :: Expr -> [GccInst String]
 doCompile e = main ++ sections
