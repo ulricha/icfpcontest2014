@@ -95,7 +95,7 @@ or e1 e2 = Cond (App2 Eq e1 0) e2 1
 data CompileState = CS { labelSupply :: Int }
 
 freshLabel :: Compile String
-freshLabel = do 
+freshLabel = do
     s <- get
     put $ s { labelSupply = labelSupply s + 1 }
     return $ "label" ++ show (labelSupply s)
@@ -119,16 +119,19 @@ join
 -}
 
 compile :: Expr -> Compile ()
-compile (Lit (IntV i)) = lift $ ldc i
-compile (Lit NilV)     = lift macro_nil
+compile (Let ident expr) = do
+    error "compile.Let"
+
 compile (App2 o e1 e2) = do
     compile e1
     compile e2
     lift $ binOp o
-compile (App1 o e)     = do
+
+compile (App1 o e) = do
     compile e
     lift $ unOp o
-compile (Cond c t e)   = do
+
+compile (Cond c t e) = do
     compile c
     thenLabel <- freshLabel
     elseLabel <- freshLabel
@@ -142,9 +145,15 @@ compile (Cond c t e)   = do
     compile e
     lift join_
 
+compile (Lit (IntV i)) = lift $ ldc i
+compile (Lit NilV) = lift macro_nil
+
+compile (Var ident) = do
+    error "compile.Var"
+
+
 initCompileState :: CompileState
 initCompileState = CS 0
 
 doCompile :: Expr -> GccProgram String ()
 doCompile e = evalStateT (compile e) initCompileState
-    
