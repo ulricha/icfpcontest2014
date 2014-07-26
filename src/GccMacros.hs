@@ -21,4 +21,4 @@ macro_nil :: GccProgram String ()
 macro_nil = ldc 0xdeadbeef
 
 macro_isnil :: GccProgram String ()
-macro_isnil = ldc 0xdeadbeef >> ceq
+macro_isnil = atom

@@ -134,14 +134,14 @@ fun_intlist = do
     ld 0 0
     ldc 0
     ceq
-    sel "zero" "rec"
+    sel "intlist_zero" "intlist_rec"
     rtn
 
-    label "zero"
+    label "intlist_zero"
     macro_nil
     join_
 
-    label "rec"
+    label "intlist_rec"
     -- n
     ld 0 0
 
@@ -154,6 +154,42 @@ fun_intlist = do
     -- i : intlist i - 1
     cons
     join_
+
+-- list length
+length_test :: Int -> GccProgram String ()
+length_test i = do
+    ldc i
+
+    fun_call 1 "intlist"
+    fun_call 1 "length"
+    rtn
+    
+    fun_intlist
+    fun_length
+    
+-- length xs = if null xs then 0 else 1 + length tail xs
+fun_length :: GccProgram String ()
+fun_length = do
+    label "length"
+
+    ld 0 0
+    macro_isnil
+    sel "length_zero" "length_rec"
+    rtn
+    
+    label "length_zero"
+    ldc 0
+    join_
+
+    label "length_rec"
+    ld 0 0
+    cdr
+    fun_call 1 "length"
+    ldc 1
+    add
+    join_
+    
+
     
     
 
