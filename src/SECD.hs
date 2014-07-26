@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module SECD where
 
@@ -9,13 +10,13 @@ import Control.Monad.Free
 import Data.Attoparsec as AP
 import Data.List
 import Data.Monoid
-import System.Process
+import Data.String.Conversions as SC
 import System.Environment
+import System.Process
 import Text.Show.Pretty
 
 import qualified Data.AttoLisp as AL
 import qualified Data.ByteString as SBS
-import qualified Data.String.Conversions as SC
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified System.IO as IO
@@ -46,16 +47,6 @@ schemeToSECD scheme = do
 
 secdToGcc :: SC.SBS -> Either String (GccProgram String ())
 secdToGcc = fmap sexpToGcc . eitherResult . parse AL.lisp
-
-
-scheme_sample :: SC.SBS
-scheme_sample = mconcat $
-    "((lambda (iwstate gcode)" :
-    " (let (" :
-    " (cons 0" :
-    "  (lambda (aistate wstate)" :
-    "   '(0 3)))))) 3 3)" :
-    []
 
 
 -- | i just add this because i fixed the broken Show instance in
@@ -171,5 +162,6 @@ sexpToGcc sexp@(AL.List secd) = do
 
 
 x = do
+    scheme_sample :: SBS <- SBS.readFile "../scheme/1.scm"
     schemeToSECD scheme_sample >>= putStrLn . ppShow
     schemeToGcc scheme_sample >>= \ (Right prog) -> putStrLn . codeGen $ prog
