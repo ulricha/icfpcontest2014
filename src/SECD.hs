@@ -16,7 +16,7 @@ import System.Process
 import Text.Show.Pretty
 
 import qualified Data.AttoLisp as AL
-import qualified Data.ByteString as SBS
+import qualified Data.ByteString.Char8 as SBS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified System.IO as IO
@@ -71,56 +71,76 @@ prettyShow = f
 
 type Routine = (String, GccProg ())
 
+type ScopeFrame = [(T.Text, Int)]
+
+-- | take a parameter list in a secd lambda expression and turn it
+-- into a scope frame.
+mkScopeFrame :: [AL.Lisp] -> ScopeFrame
+mkScopeFrame = (`zip` [0..]) . map (\ (AL.Symbol s) -> s)
+
+scopeLookup :: [ScopeFrame] -> T.Text -> GccProg ()
+scopeLookup frames name = f 0 frames
+  where
+    f i (frame:frames') = maybe (f (i+1) frames') (Gcc.ld i) $ lookup name frame
+    f _ [] = error $ "undefined free variable: " ++ show name
+
+-- FIXME: i think gcc does dynamic scoping, sexpToGcc assumes lexical
+-- scoping, and the two down agree very well with each other.  must
+-- think more about this.  find counter-example?
+
+-- | comple an secd program into an gcc program.
 sexpToGcc :: AL.Lisp -> GccProg ()
 sexpToGcc sexp@(AL.List secd) = do
       insts
       flipStackAsm
       mapM_ (\ (n, r) -> label n >> r) $ routines
   where
-    (_, routines, insts) = lexer 0 [] [] secd
+    (_, routines, insts) = lexer [] 0 [] [] secd
 
-    lexer :: Int -> [Routine] -> [GccProg ()] -> [AL.Lisp] -> (Int, [Routine], GccProg ())
-    lexer label routines insts (AL.Symbol "LDC" : AL.Number i : secd) =
-        lexer label routines (insts ++ [ldc (round i)]) secd
+    lexer :: [ScopeFrame] -> Int -> [Routine] -> [GccProg ()] -> [AL.Lisp] -> (Int, [Routine], GccProg ())
+    lexer scopes label routines insts (AL.Symbol "LDC" : AL.Number i : secd) =
+        lexer scopes label routines (insts ++ [ldc (round i)]) secd
 
     -- LDC may also receive '()' as argument in secd, but in gcc
     -- forces us to make up an integer.
-    lexer label routines insts (AL.Symbol "LDC" : AL.List [] : secd) =
-        lexer label routines (insts ++ [ldc 0xdeadbeef]) secd
+    lexer scopes label routines insts (AL.Symbol "LDC" : AL.List [] : secd) =
+        lexer scopes label routines (insts ++ [ldc 0xdeadbeef]) secd
 
-    lexer label routines insts (AL.Symbol "LD" : AL.Number i1 : AL.Number i2 : secd) =
-        lexer label routines (insts ++ [ld (round i1) (round i2)]) secd
+    lexer scopes label routines insts (AL.Symbol "LD" : AL.Number i1 : AL.Number i2 : secd) =
+        lexer scopes label routines (insts ++ [ld (round i1) (round i2)]) secd
 
-    lexer label routines insts (AL.Symbol (matchUnaryOP -> Just unaryOp) : secd) =
-        lexer label routines (insts ++ [unaryOp]) secd
+    lexer scopes label routines insts (AL.Symbol "LD" : AL.Symbol name : secd) =
+        lexer scopes label routines (insts ++ [scopeLookup scopes name]) secd
 
-    lexer label routines insts (AL.Symbol "SEL" : secd) =
+    lexer scopes label routines insts (AL.Symbol (matchUnaryOP -> Just unaryOp) : secd) =
+        lexer scopes label routines (insts ++ [unaryOp]) secd
+
+    lexer scopes label routines insts (AL.Symbol "SEL" : secd) =
         error "sexpToGcc.SEL"
 
-    lexer label routines insts (AL.Symbol "LDF" : (AL.List [AL.List _, AL.List fun]) : secd) =
-        -- FIXME: if function arguments are actually used, this won't work any more!
+    lexer scopes label routines insts (AL.Symbol "LDF" : (AL.List [AL.List argv, AL.List body]) : secd) =
         let label'                          = label + 1
-            (label'', routines', subinsts)  = lexer label' [] [] fun
+            (label'', routines', subinsts)  = lexer (mkScopeFrame argv : scopes) label' [] [] body
             routines''                      = (show label, subinsts) : routines ++ routines'
             insts'                          = insts ++ [ldf (show label)]
-        in lexer label'' routines'' insts' secd
+        in lexer scopes label'' routines'' insts' secd
 
-    lexer label routines insts (AL.Symbol "AP" : AL.Number i : secd) =
-        lexer label routines (insts ++ [ap (round i)]) secd
+    lexer scopes label routines insts (AL.Symbol "AP" : AL.Number i : secd) =
+        lexer scopes label routines (insts ++ [ap (round i)]) secd
 
     -- in secd, "ap" has a variable list of parameters!  :(
-    lexer label routines insts (AL.Symbol "AP" : secd) =
-        lexer label routines (insts ++ [{- FIXME -}]) secd
+    lexer scopes label routines insts (AL.Symbol "AP" : secd) =
+        lexer scopes label routines (insts ++ [error "sexpToGcc.AP with no args"]) secd
 
-    lexer label routines insts (AL.Symbol "DUM" : AL.Number i : secd) =
-        lexer label routines (insts ++ [dum (round i)]) secd
+    lexer scopes label routines insts (AL.Symbol "DUM" : AL.Number i : secd) =
+        lexer scopes label routines (insts ++ [dum (round i)]) secd
 
-    lexer label routines insts (AL.Symbol "RAP" : AL.Number i : secd) =
-        lexer label routines (insts ++ [rap (round i)]) secd
+    lexer scopes label routines insts (AL.Symbol "RAP" : AL.Number i : secd) =
+        lexer scopes label routines (insts ++ [rap (round i)]) secd
 
-    lexer label routines insts [] = (label, routines, sequence_ $ inverseCond insts)
+    lexer scopes label routines insts [] = (label, routines, sequence_ $ inverseCond insts)
 
-    lexer l r i x = error $ "sexpToGcc: unmatched pattern!\n" ++ ppShow (l, r, i, x)
+    lexer s l r i x = error $ "sexpToGcc: unmatched pattern!\n" ++ ppShow (s, l, r, i, x)
 
     matchUnaryOP :: T.Text -> Maybe (GccProg ())
     matchUnaryOP "ADD" = Just add
@@ -158,10 +178,8 @@ sexpToGcc sexp@(AL.List secd) = do
 
 
 
---- error (ppShow sexp ++ "\n\n" ++ prettyShow sexp)
-
-
 x = do
-    scheme_sample :: SBS <- SBS.readFile "../scheme/1.scm"
+    scheme_sample :: SBS <- SBS.readFile "../scheme/3.scm"
+    SBS.putStrLn scheme_sample
     schemeToSECD scheme_sample >>= putStrLn . ppShow
     schemeToGcc scheme_sample >>= \ (Right prog) -> putStrLn . codeGen $ prog
