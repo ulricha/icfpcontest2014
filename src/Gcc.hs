@@ -167,8 +167,14 @@ instList :: GccProgram l a -> [GccInst l]
 instList (Pure _)          = []
 instList (Free (Inst i c)) = i : instList c
 
-codeGen :: GccProgram String a -> String
-codeGen p = intercalate "\n" $ map show $ fromJust $ lineLabels $ instList p
+codeGen' :: GccProgram String a -> String
+codeGen' p = intercalate "\n" $ map show $ fromJust $ lineLabels $ instList p
+
+codeGen :: [GccInst String] -> String
+codeGen p = intercalate "\n" $ map show $ fromJust $ lineLabels p
+
+printCode :: [GccInst String] -> IO ()
+printCode p = putStrLn $ codeGen p
 
 ----------------------------------------------------------------------
 -- run time
