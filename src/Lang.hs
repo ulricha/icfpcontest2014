@@ -1,9 +1,13 @@
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, FunctionalDependencies, OverloadedStrings #-}
+
 module Lang where
 
 import Control.Monad.State
 
 import Gcc
 import GccMacros
+
+import GHC.Exts (IsString(..))
 
 --------------------------------------------------------------------------------
 -- Language definition
@@ -92,7 +96,24 @@ not_ e = Cond (App2 Eq e 0) 1 0
 (.||) :: Expr -> Expr -> Expr
 (.||) e1 e2 = Cond (App2 Eq e1 0) e2 1
 
+(?) :: Expr -> (Expr, Expr) -> Expr
+cond ? (thenCase, elseCase) = Cond cond thenCase elseCase
 
+
+class FunApp f args | f -> args where
+    (.$.) :: f -> args -> Expr
+
+instance FunApp BinOp (Expr, Expr) where
+    f .$. (x, y) = App2 f x y
+
+instance FunApp UnOp Expr where
+    f .$. x = App1 f x
+
+instance FunApp Expr [Expr] where
+    f .$. xs = AppL f xs
+
+instance IsString Expr where
+    fromString = Var
 --------------------------------------------------------------------------------
 -- SECD^WGCC compiler
 
