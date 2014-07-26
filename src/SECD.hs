@@ -78,8 +78,7 @@ prettyShow = f
 -- inline lambdas => labels
 -- align argument frame addresses
 
-type Routines = [(String, GccProg ())]
-type Instructions = [GccProg ()]
+type Routine = (String, GccProg ())
 
 sexpToGcc :: AL.Lisp -> GccProg ()
 sexpToGcc sexp@(AL.List secd) = do
@@ -87,34 +86,40 @@ sexpToGcc sexp@(AL.List secd) = do
       flipStackAsm
       mapM_ (\ (n, r) -> label n >> r) $ routines
   where
-    (routines, insts) = lexer [] [] secd
+    (routines, insts) = lexer 0 [] [] secd
 
-    lexer :: Routines -> Instructions -> [AL.Lisp] -> (Routines, Instructions)
-    lexer routines insts (AL.Symbol "LDC" : AL.Number i : secd) =
-        lexer routines (insts ++ [ldc (round i)]) secd
+    lexer :: Int -> [Routine] -> [GccProg ()] -> [AL.Lisp] -> ([Routine], [GccProg ()])
+    lexer label routines insts (AL.Symbol "LDC" : AL.Number i : secd) =
+        lexer label routines (insts ++ [ldc (round i)]) secd
 
-    lexer routines insts (AL.Symbol "LD" : AL.Number i1 : AL.Number i2 : secd) =
-        lexer routines (insts ++ [ld (round i1) (round i2)]) secd
+    lexer label routines insts (AL.Symbol "LD" : AL.Number i1 : AL.Number i2 : secd) =
+        lexer label routines (insts ++ [ld (round i1) (round i2)]) secd
 
-    lexer routines insts (AL.Symbol (matchUnaryOP -> Just unaryOp) : secd) =
-        lexer routines (insts ++ [unaryOp]) secd
+    lexer label routines insts (AL.Symbol (matchUnaryOP -> Just unaryOp) : secd) =
+        lexer label routines (insts ++ [unaryOp]) secd
 
-    lexer routines insts (AL.Symbol "SEL" : secd) =
+    lexer label routines insts (AL.Symbol "SEL" : secd) =
         error "sexpToGcc.SEL"
 
-    lexer routines insts (AL.Symbol "LDF" : secd) =
-        error $ "sexpToGcc.LDF\n" ++ ppShow insts
+    lexer label routines insts (AL.Symbol "LDF" : (AL.List [AL.List _, fun]) : secd) =
+        -- FIXME: if function arguments are actually used, this won't work any more!
+        let label'     = label + 1
+            routines'  = (show label, sexpToGcc fun) : routines
+            insts'     = insts ++ [ldf (show label)]
+        in lexer label' routines' insts' secd
 
-    lexer routines insts (AL.Symbol "AP" : AL.Number i : secd) =
-        lexer routines (insts ++ [ap (round i)]) secd
+    lexer label routines insts (AL.Symbol "AP" : AL.Number i : secd) =
+        lexer label routines (insts ++ [ap (round i)]) secd
 
-    lexer routines insts (AL.Symbol "DUM" : AL.Number i : secd) =
-        lexer routines (insts ++ [dum (round i)]) secd
+    lexer label routines insts (AL.Symbol "DUM" : AL.Number i : secd) =
+        lexer label routines (insts ++ [dum (round i)]) secd
 
-    lexer routines insts (AL.Symbol "RAP" : AL.Number i : secd) =
-        lexer routines (insts ++ [rap (round i)]) secd
+    lexer label routines insts (AL.Symbol "RAP" : AL.Number i : secd) =
+        lexer label routines (insts ++ [rap (round i)]) secd
 
-    lexer routines insts [] = (routines, insts)
+    lexer label routines insts [] = (routines, insts)
+
+    lexer l r i x = error $ "sexpToGcc: unmatched pattern!\n" ++ ppShow (l, r, i, x)
 
     matchUnaryOP :: T.Text -> Maybe (GccProg ())
     matchUnaryOP "ADD" = Just add
@@ -136,6 +141,7 @@ sexpToGcc sexp@(AL.List secd) = do
     inverseCond (cons@(Free (Inst CONS _)) : insts) =
         flipStack : cons : inverseCond insts
     inverseCond (x:xs) = x : inverseCond xs
+    inverseCond [] = []
 
     flipStack :: GccProg ()
     flipStack = do
@@ -149,31 +155,6 @@ sexpToGcc sexp@(AL.List secd) = do
         ld 0 0
         rtn
 
-
-{-
-  , Symbol "LDF"
-  , List
-      [ List [ Symbol "iwstate" , Symbol "gcode" ]
-      , List
-          [ Symbol "LDC"
-          , List []
-          , Symbol "LDC"
-          , Number 0
-          , Symbol "CONS"
-          , Symbol "LDF"
-          , List
-              [ List [ Symbol "cons" ]
-              , List [ Symbol "LDC" , List [] , Symbol "RTN" ]
-              ]
-          , Symbol "AP"
-          , Symbol "RTN"
-          ]
-      ]
-  , Symbol "AP"
-  , Number 2
-  ]
-
--}
 
 
 --- error (ppShow sexp ++ "\n\n" ++ prettyShow sexp)
