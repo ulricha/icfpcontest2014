@@ -110,16 +110,19 @@ join
 -}
 
 compile :: Expr -> Compile ()
-compile (Lit (IntV i)) = lift $ ldc i
-compile (Lit NilV)     = lift macro_nil
+compile (Let ident expr) = do
+    error "compile.Let"
+
 compile (App2 o e1 e2) = do
     compile e1
     compile e2
     lift $ binOp o
-compile (App1 o e)     = do
+
+compile (App1 o e) = do
     compile e
     lift $ unOp o
-compile (Cond c t e)   = do
+
+compile (Cond c t e) = do
     compile c
     thenLabel <- freshLabel
     elseLabel <- freshLabel
@@ -132,6 +135,13 @@ compile (Cond c t e)   = do
     lift $ label elseLabel
     compile e
     lift join_
+
+compile (Lit (IntV i)) = lift $ ldc i
+compile (Lit NilV) = lift macro_nil
+
+compile (Var ident) = do
+    error "compile.Var"
+
 
 initCompileState :: CompileState
 initCompileState = CS 0
