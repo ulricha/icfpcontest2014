@@ -1,6 +1,7 @@
 module GccExercises where
 
 import Gcc
+import GccMacros
 
 goto :: GccProgram String ()
 goto = do
@@ -87,6 +88,8 @@ addrec = do
     join_
     fun_copy
 
+-- Faculty
+
 fac_test :: Int -> GccProgram String ()
 fac_test i = do
     ldc i
@@ -114,4 +117,43 @@ fun_fac = do
     fun_call 1 "fac"
     mul
     join_
+
+-- list of integers
+
+intlist_test :: Int -> GccProgram String ()
+intlist_test i = do
+    ldc i
+    fun_call 1 "intlist"
+    rtn
+    fun_intlist
+
+-- intlist i = if i = 0 then [] else i : intlist (i - 1)
+fun_intlist :: GccProgram String ()
+fun_intlist = do
+    label "intlist"
+    ld 0 0
+    ldc 0
+    ceq
+    sel "zero" "rec"
+    rtn
+
+    label "zero"
+    macro_nil
+    join_
+
+    label "rec"
+    -- n
+    ld 0 0
+
+    -- intlist (n - 1)
+    ld 0 0
+    ldc 1
+    sub
+    fun_call 1 "intlist"
+
+    -- i : intlist i - 1
+    cons
+    join_
+    
+    
 

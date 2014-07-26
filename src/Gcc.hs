@@ -205,21 +205,6 @@ stupidAI = do
     rtn
 
 --------------------------------------------------------------------------------
--- Helper macros
-    
-fun_call :: Int -> String -> GccProgram String ()
-fun_call arity label = do
-    ldf label
-    ap arity
-
-fun_copy :: GccProgram String ()
-fun_copy = do
-    label "copy"
-    ld 0 0
-    ld 0 0
-    rtn
-
---------------------------------------------------------------------------------
 -- Transform string labels into proper line numbers
 
 enumInsts :: [GccInst String] -> [Either (Line, GccInst String) String]
