@@ -1,9 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE TupleSections #-}
 
 module SECD where
 
 import Control.Applicative
+import Control.Monad.Free
 import Data.Attoparsec as AP
 import Data.List
 import Data.Monoid
@@ -76,53 +78,76 @@ prettyShow = f
 -- inline lambdas => labels
 -- align argument frame addresses
 
+type Routines = [(String, GccProg ())]
+type Instructions = [GccProg ()]
+
 sexpToGcc :: AL.Lisp -> GccProg ()
-sexpToGcc sexp@(AL.List insts) = f [] insts
+sexpToGcc sexp@(AL.List secd) = do
+      sequence $ inverseCond insts
+      flipStackAsm
+      mapM_ (\ (n, r) -> label n >> r) $ routines
   where
-    f :: [(String, GccProg ())] -> [AL.Lisp] -> GccProg ()
-    f routines (AL.Symbol "LDC" : AL.Number i : insts) =
-        ldc (round i) >> f routines insts
+    (routines, insts) = lexer [] [] secd
 
-    f routines (AL.Symbol "LD" : AL.Number i1 : AL.Number i2 : insts) =
-        ld (round i1) (round i2) >> f routines insts
+    lexer :: Routines -> Instructions -> [AL.Lisp] -> (Routines, Instructions)
+    lexer routines insts (AL.Symbol "LDC" : AL.Number i : secd) =
+        lexer routines (insts ++ [ldc (round i)]) secd
 
-    f routines (AL.Symbol (g -> Just unaryOp) : insts) =
-        unaryOp >> f routines insts
+    lexer routines insts (AL.Symbol "LD" : AL.Number i1 : AL.Number i2 : secd) =
+        lexer routines (insts ++ [ld (round i1) (round i2)]) secd
 
-    f routines (AL.Symbol "SEL" : insts) =
+    lexer routines insts (AL.Symbol (matchUnaryOP -> Just unaryOp) : secd) =
+        lexer routines (insts ++ [unaryOp]) secd
+
+    lexer routines insts (AL.Symbol "SEL" : secd) =
         error "sexpToGcc.SEL"
 
-    f routines (AL.Symbol "JOIN" : insts) =
-        join_ >> f routines insts
-
-    f routines (AL.Symbol "LDF" : insts) =
+    lexer routines insts (AL.Symbol "LDF" : secd) =
         error $ "sexpToGcc.LDF\n" ++ ppShow insts
 
-    f routines (AL.Symbol "AP" : AL.Number i : insts) =
-        ap (round i) >> f routines insts
+    lexer routines insts (AL.Symbol "AP" : AL.Number i : secd) =
+        lexer routines (insts ++ [ap (round i)]) secd
 
-    f routines (AL.Symbol "DUM" : AL.Number i : insts) =
-        dum (round i) >> f routines insts
+    lexer routines insts (AL.Symbol "DUM" : AL.Number i : secd) =
+        lexer routines (insts ++ [dum (round i)]) secd
 
-    f routines (AL.Symbol "RAP" : AL.Number i : insts) =
-        rap (round i) >> f routines insts
+    lexer routines insts (AL.Symbol "RAP" : AL.Number i : secd) =
+        lexer routines (insts ++ [rap (round i)]) secd
 
-    f routines [] = rtn
+    lexer routines insts [] = (routines, insts)
 
-    g :: T.Text -> Maybe (GccProg ())
-    g "ADD" = Just add
-    g "SUB" = Just sub
-    g "MUL" = Just mul
-    g "DIV" = Just Gcc.div
-    g "CEQ" = Just ceq
-    g "CGT" = Just cgt
-    g "CGTE" = Just cgte
-    g "ATOM" = Just atom
-    g "CONS" = Just cons
-    g "CAR" = Just car
-    g "CDR" = Just cdr
-    g "RTN" = Just rtn
-    g _ = Nothing
+    matchUnaryOP :: T.Text -> Maybe (GccProg ())
+    matchUnaryOP "ADD" = Just add
+    matchUnaryOP "SUB" = Just sub
+    matchUnaryOP "MUL" = Just mul
+    matchUnaryOP "DIV" = Just Gcc.div
+    matchUnaryOP "CEQ" = Just ceq
+    matchUnaryOP "CGT" = Just cgt
+    matchUnaryOP "CGTE" = Just cgte
+    matchUnaryOP "ATOM" = Just atom
+    matchUnaryOP "CONS" = Just cons
+    matchUnaryOP "CAR" = Just car
+    matchUnaryOP "CDR" = Just cdr
+    matchUnaryOP "JOIN" = Just join_
+    matchUnaryOP "RTN" = Just rtn
+    matchUnaryOP _ = Nothing
+
+    inverseCond :: [GccProg ()] -> [GccProg ()]
+    inverseCond (cons@(Free (Inst CONS _)) : insts) =
+        flipStack : cons : inverseCond insts
+    inverseCond (x:xs) = x : inverseCond xs
+
+    flipStack :: GccProg ()
+    flipStack = do
+        ldf "_flip_stack"
+        ap 2
+
+    flipStackAsm :: GccProg ()
+    flipStackAsm = do
+        label "_flip_stack"
+        ld 0 1
+        ld 0 0
+        rtn
 
 
 {-
