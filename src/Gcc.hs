@@ -25,7 +25,7 @@ data GccCInst
     | C_CONS
     | C_CAR
     | C_CDR
-    | C_SEL
+    | C_SEL Line Line
     | C_JOIN
     | C_LDF Line
     | C_AP Int
@@ -47,7 +47,7 @@ instance Show GccCInst where
     show (C_CONS) = "CONS "
     show (C_CAR) = "CAR "
     show (C_CDR) = "CDR "
-    show (C_SEL) = "SEL "
+    show (C_SEL t f) = "SEL " ++ show t ++ " " ++ show f
     show (C_JOIN) = "JOIN "
     show (C_LDF n) = ("LDF " ++ show n)
     show (C_AP n) = ("AP " ++ show n)
@@ -69,7 +69,7 @@ data GccInst label
     | CONS
     | CAR
     | CDR
-    | SEL
+    | SEL label label
     | JOIN
     | LDF label
     | AP Int
@@ -127,8 +127,8 @@ car = liftF $ Inst CAR ()
 cdr :: GccProgram l ()
 cdr = liftF $ Inst CDR ()
 
-sel :: GccProgram l ()
-sel = liftF $ Inst SEL ()
+sel :: l -> l -> GccProgram l ()
+sel t f = liftF $ Inst (SEL t f) ()
 
 join_ :: GccProgram l ()
 join_ = liftF $ Inst JOIN ()
@@ -203,6 +203,49 @@ stupidAI = do
     add
     sub
     rtn
+
+goto :: GccProgram String ()
+goto = do
+    dum 2
+    ldf "go"
+    ldf "to"
+    ldf "main"
+    rap 2
+    rtn
+
+    label "main"
+    ldc 1
+    ld 0 0
+    ap 1
+    rtn
+
+    label "to"
+    ld 0 0
+    ldc 1
+    sub
+    ld 1 0
+    ap 1
+    rtn
+
+    label "go"
+    ld 0 0
+    ldc 1
+    add
+    ld 1 1
+    ap 1
+    rtn
+
+cond :: GccProgram String ()
+cond = do
+    ldc 5
+    ldc 3
+    cgte
+    sel "true" "false"
+    label "true"
+    ldc 42
+    label "false"
+    ldc 23
+
     
 
 {-
@@ -252,7 +295,11 @@ mapLabels env (ATOM : insts) = (:) C_ATOM <$> mapLabels env insts
 mapLabels env (CONS : insts) = (:) C_CONS <$> mapLabels env insts
 mapLabels env (CAR : insts) = (:) C_CAR <$> mapLabels env insts
 mapLabels env (CDR : insts) = (:) C_CDR <$> mapLabels env insts
-mapLabels env (SEL : insts) = (:) C_SEL <$> mapLabels env insts
+mapLabels env (SEL t f : insts) = do
+    lineTrue <- lookup t env
+    lineFalse <- lookup f env
+    cinsts <- mapLabels env insts
+    return $ C_SEL lineTrue lineFalse : cinsts
 mapLabels env (JOIN : insts) = (:) C_JOIN <$> mapLabels env insts
 mapLabels env (RTN : insts) = (:) C_RTN <$> mapLabels env insts
 mapLabels env (DUM i : insts) = (:) (C_DUM i) <$> mapLabels env insts
