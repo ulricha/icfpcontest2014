@@ -39,7 +39,9 @@ int = Lit . IntV
 nil :: Expr
 nil = Lit NilV
 
-data Prog = Letrec [(Ident, Expr)] Expr deriving (Show)
+data Prog = Letrec [(Ident, Expr)] Expr
+          | Expr Expr
+          deriving (Show)
 
 data BinOp = Add
            | Sub
@@ -143,14 +145,13 @@ type EnvFrame = [(Ident, ScopeDepth -> FrameRef)]
 
 type Env = [EnvFrame]
 
-enterScope :: [Ident] -> Compile a -> Compile a 
-enterScope args m = local (\e -> extendEnv e) m
-  where
-    extendEnv frames = 
-      let localFrame = zipWith (\a i -> (a, \d -> (d, i))) args [0..]
-      in localFrame : frames
+extendEnv :: [Ident] -> Env -> Env
+extendEnv args frames = localFrame : frames
+  where 
+    localFrame = zipWith (\a i -> (a, \d -> (d, i))) args [0..]
 
-enterRecScope = undefined
+enterScope :: [Ident] -> Compile a -> Compile a
+enterScope args m = local (\e -> extendEnv args e) m
 
 searchFrames :: Ident -> Env -> Maybe FrameRef
 searchFrames name env = go 0 env name
@@ -207,6 +208,52 @@ compile (AppL fun es) = do
     argsCode <- concat <$> mapM compile es
     funCode  <- compile fun
     return $ argsCode ++ funCode ++ [AP arity]
+
+compileProg :: Prog -> Compile [GccInst]
+compileProg (Letrec bindings body) = do
+    let nrBindings = length bindings
+        names      = map fst bindings
+    bindingsCode <- concat <$> mapM (\(n, e) -> enterScope names $ compile e) bindings
+    
+    mainLabel    <- enterScope names $ toSection body [RTN]
+
+    return $ [DUM nrBindings] 
+             ++ bindingsCode 
+             ++ [LDF mainLabel, RAP nrBindings]
+
+compileProg (Expr e) = compile e
+    
+     
+{-
+letrec x = e1
+       y = e2
+       z = e3
+in e
+=>
+enrich environment as follows:
+create a new env frame in which all local letrec names are bound:
+env' = [x = \i -> ld i 0
+       ,y = \i -> ld i 1
+       ,z = \i -> ld i 2
+       ] : env
+
+if bindings refer to lambda expressions, further frames will be
+created for those.  
+
+AND
+
+DUM 3   ; Number of bindings in letrec
+<<e1>>  ; compile in env'
+<<e2>>  ; compile in env'
+<<e3>>  ; compile in env'
+LDF main ; load function wrapper for main expression
+RAP 3   ; number of bindings in letrec
+RTN
+main:
+<<e>>   ; compile in env'
+RTN
+-} 
+
     
 toSection :: Expr -> [GccInst] -> Compile String
 toSection e suffix = do
@@ -221,10 +268,16 @@ initCompileState = CS 0
 initEnv :: Env
 initEnv = []
 
-doCompile :: Expr -> [GccInst]
+doCompile :: Prog -> [GccInst]
 doCompile e = main ++ [RTN] ++ sections
   where
-    (main, sections) = evalRWS (compile e) initEnv initCompileState
+    (main, sections) = evalRWS (compileProg e) initEnv initCompileState
 
 test1 :: Expr
 test1 = Let "f" (Lambda ["x"] ("x" + "x")) (Var "f" .$. [42])
+
+test2 :: Prog
+test2 = Letrec [ ("to", Lambda ["x"] (Var "go" .$. [Var "x" - 1]))
+               , ("go", Lambda ["y"] (Var "to" .$. [Var "y" + 1]))
+               ]
+               (Var "go" .$. [1])
