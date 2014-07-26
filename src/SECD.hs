@@ -7,6 +7,7 @@ import Data.Attoparsec as AP
 import Data.List
 import Data.Monoid
 import System.Process
+import System.Environment
 import Text.Show.Pretty
 
 import qualified Data.AttoLisp as AL
@@ -26,7 +27,9 @@ schemeToGcc = fmap secdToGcc . schemeToSECD
 
 schemeToSECD :: SC.SBS -> IO SC.SBS
 schemeToSECD scheme = do
-    let secdscheme = "/home/mf/pc/SECD/secdscheme"
+    secdscheme <- maybe (error "please set shell variable SECD_SCHEME") id .
+                  lookup "SECD_SCHEME" <$>
+                  getEnvironment
     let cmd = "(secd-compile '" <> scheme <> ")"
     (i, o, e, h) <- runInteractiveProcess secdscheme [] Nothing Nothing
     SBS.hPutStr i cmd
