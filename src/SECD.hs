@@ -31,7 +31,7 @@ schemeToGcc = fmap secdToGcc . schemeToSECD
 
 schemeToSECD :: SC.SBS -> IO SC.SBS
 schemeToSECD scheme = do
-    secdscheme <- maybe (error "please set shell variable SECD_SCHEME") id .
+    secdscheme <- maybe (error "please set shell variable SECD_SCHEME [github.com/EarlGray/SECD]") id .
                   lookup "SECD_SCHEME" <$>
                   getEnvironment
     let cmd = "(secd-compile '" <> scheme <> ")"
