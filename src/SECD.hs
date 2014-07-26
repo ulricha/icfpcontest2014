@@ -130,7 +130,7 @@ sexpToGcc sexp@(AL.List secd) = do
 
     -- in secd, "ap" has a variable list of parameters!  :(
     lexer scopes label routines insts (AL.Symbol "AP" : secd) =
-        lexer scopes label routines (insts ++ [error "sexpToGcc.AP with no args"]) secd
+        lexer scopes label routines (insts ++ [untangleArgv >>= ap]) secd
 
     lexer scopes label routines insts (AL.Symbol "DUM" : AL.Number i : secd) =
         lexer scopes label routines (insts ++ [dum (round i)]) secd
@@ -175,6 +175,19 @@ sexpToGcc sexp@(AL.List secd) = do
         ld 0 1
         ld 0 0
         rtn
+
+    untangleArgv :: GccProg Int
+    untangleArgv = error "sexpToGcc: untangleArgv"
+
+      -- FIXME: not sure how this is supposed to work.  i think ap can
+      -- be called without an argument, which will cause it to pop a
+      -- function and a *list* of arguments from the stack (rather
+      -- than the requested number of individual arguments) and pass
+      -- the cars of the list as arguments to the function.
+      --
+      -- if that's true, i'm not sure how this is translated into ap.
+      -- we can't know the length of the list at compile-time, so we
+      -- can't pass the number of arguments to ap.
 
 
 
