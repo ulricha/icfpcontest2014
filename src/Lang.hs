@@ -24,6 +24,22 @@ data Expr = Let Ident Expr
           | Var Ident
           deriving (Show)
 
+binApp :: BinOp -> Expr -> Expr -> Expr
+binApp op = App2 op
+
+instance Num Expr where
+    (+) = binApp Add
+    (-) = binApp Sub
+    (*) = binApp Mul
+    abs = undefined
+    fromInteger = Lit . IntV . fromInteger
+    signum = undefined
+
+(.>), (.>=), (.==) :: Expr -> Expr -> Expr
+(.>) = binApp Gt
+(.>=) = binApp GtE
+(.==) = binApp Eq
+
 int :: Int -> Expr
 int = Lit . IntV
 
