@@ -86,7 +86,7 @@ unOp o = case o of
 data CompileState = CS { labelSupply :: Int }
 
 freshLabel :: Compile String
-freshLabel = do 
+freshLabel = do
     s <- get
     put $ s { labelSupply = labelSupply s + 1 }
     return $ "label" ++ show (labelSupply s)
@@ -138,4 +138,3 @@ initCompileState = CS 0
 
 doCompile :: Expr -> GccProgram String ()
 doCompile e = evalStateT (compile e) initCompileState
-    
