@@ -103,8 +103,8 @@ sub = liftF $ Inst SUB ()
 mul :: GccProgram l ()
 mul = liftF $ Inst MUL ()
 
-div :: GccProgram l ()
-div = liftF $ Inst DIV ()
+div_ :: GccProgram l ()
+div_ = liftF $ Inst DIV ()
 
 ceq :: GccProgram l ()
 ceq = liftF $ Inst CEQ ()

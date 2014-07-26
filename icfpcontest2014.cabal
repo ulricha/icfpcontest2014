@@ -23,6 +23,7 @@ executable icfpcontest2014
                      , free == 4.9
                      , ncurses == 0.2.10
                      , vector
+                     , mtl
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -Wall
