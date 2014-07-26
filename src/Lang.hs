@@ -2,7 +2,9 @@
 
 module Lang where
 
-import Control.Monad.State
+import Control.Monad.RWS
+import Data.Maybe
+import Control.Applicative
 
 import Gcc
 import GccMacros
@@ -51,22 +53,22 @@ data UnOp = Car
           | IsNil
           deriving (Show)
 
-binOp :: BinOp -> GccProgram String ()
+binOp :: BinOp -> GccInst String
 binOp o = case o of
-    Add  -> add
-    Sub  -> sub
-    Mul  -> mul
-    Div  -> div_
-    Eq   -> ceq
-    Gt   -> cgt
-    GtE  -> cgte
-    Cons -> cons
+    Add  -> ADD
+    Sub  -> SUB
+    Mul  -> MUL
+    Div  -> DIV
+    Eq   -> CEQ
+    Gt   -> CGT
+    GtE  -> CGTE
+    Cons -> CONS
 
-unOp :: UnOp -> GccProgram String ()
+unOp :: UnOp -> GccInst String
 unOp o = case o of
-    Car   -> car
-    Cdr   -> cdr
-    IsNil -> macro_isnil
+    Car   -> CAR
+    Cdr   -> CDR
+    IsNil -> undefined
 
 --------------------------------------------------------------------------------
 -- Constructors
@@ -125,7 +127,11 @@ freshLabel = do
     put $ s { labelSupply = labelSupply s + 1 }
     return $ "label" ++ show (labelSupply s)
 
-type Compile a = StateT CompileState (GccProgram String) a
+-- type Compile a = StateT CompileState (GccProgram String) a
+
+type Env = [(Ident, Int)]
+
+type Compile a = RWS Env [GccInst String] CompileState a
 
 {-
 if c t e =>
@@ -143,38 +149,39 @@ join
 
 -}
 
-compile :: Expr -> Compile ()
+compile :: Expr -> Compile [GccInst String]
 compile (Let ident e1 e2) = do
     compile $ AppL (Lambda [ident] e2) [e1]
 
 compile (App2 o e1 e2) = do
-    compile e1
-    compile e2
-    lift $ binOp o
+    c1 <- compile e1
+    c2 <- compile e2
+    return $ binOp o : (c1 ++ c2)
 
 compile (App1 o e) = do
-    compile e
-    lift $ unOp o
+    c <- compile e
+    return $ unOp o : c
 
 compile (Cond c t e) = do
-    compile c
-    thenLabel <- freshLabel
-    elseLabel <- freshLabel
-    lift $ sel thenLabel elseLabel
+    cc <- compile c
+    
+    thenLabel <- toSection t [JOIN]
+    elseLabel <- toSection e [JOIN]
 
-    lift $ label thenLabel
-    compile t
-    lift join_
+    return $ cc ++ [SEL thenLabel elseLabel]
 
-    lift $ label elseLabel
-    compile e
-    lift join_
-
-compile (Lit (IntV i)) = lift $ ldc i
-compile (Lit NilV) = lift macro_nil
+compile (Lambda args body) = do
+    let argEnv = zip args [1..]
+    bodyLabel <- local (++ argEnv) $ toSection body [RTN]
+    return [LDF bodyLabel]
+    
+compile (Lit (IntV i)) = return $ [LDC i]
+compile (Lit NilV) = return $ [LDC 0xdeadbeef]
 
 compile (Var ident) = do
-    error "compile.Var"
+    -- FIXME get rid of fromJust
+    varPos <- fromJust <$> (asks $ lookup ident)
+    return $ [LD undefined varPos]
 
 compile (Lambda idents expr) = do
     error "compile.Lambda"
@@ -182,8 +189,17 @@ compile (Lambda idents expr) = do
 compile (AppL e1 e2) = do
     error "compile.AppL"
 
+toSection :: Expr -> [GccInst String] -> Compile String
+toSection e suffix = do
+    lab     <- freshLabel
+    section <- compile e
+    tell $ LABEL lab : section ++ suffix
+    return $ lab
+
 initCompileState :: CompileState
 initCompileState = CS 0
 
-doCompile :: Expr -> GccProgram String ()
-doCompile e = evalStateT (compile e) initCompileState
+doCompile :: Expr -> [GccInst String]
+doCompile e = main ++ sections
+  where
+    (main, sections) = evalRWS (compile e) [] initCompileState
