@@ -118,7 +118,7 @@ untangleArgv :: GccProg ()
 untangleArgv = do
     ldc 0  -- number of args already pushed
     ldf "_untangle_argv"
-    ap 2
+    ap 3
 
 untangleArgvAsm :: GccProg ()
 untangleArgvAsm = do
