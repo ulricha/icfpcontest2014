@@ -273,6 +273,9 @@ doCompile e = main ++ [RTN] ++ sections
   where
     (main, sections) = evalRWS (compileProg e) initEnv initCompileState
 
+--------------------------------------------------------------------------------
+-- Compiler tests
+
 test1 :: Expr
 test1 = Let "f" (Lambda ["x"] ("x" + "x")) (Var "f" .$. [42])
 
@@ -289,6 +292,11 @@ simpleAI =
          ]
          (Var "main" .$. [])
 
+
+testlist :: Expr
+testlist = Cons .$. (1, Cons .$. (2, Cons .$. (3, Cons .$. (4, nil))))
+
+-- length xs = if isnil xs then 0 else 1 + length (cdr xs)
 length_ :: Expr -> Prog
 length_ xs =
   Letrec [ ("length", Lambda ["xs"] 
@@ -298,8 +306,20 @@ length_ xs =
          ]
          (Var "length" .$. [xs])
 
-testlist :: Expr
-testlist = Cons .$. (1, Cons .$. (2, Cons .$. (3, Cons .$. (4, nil))))
-
 test_length :: Prog
 test_length = length_ testlist
+
+
+-- nth_ i xs = if i == 0 then car xs else nth_ (i - 1) (cdr xs)
+nth_ :: Expr -> Expr -> Prog
+nth_ i xs = 
+  Letrec [ ( "nth", Lambda ["i", "xs"]
+                           ("i" .== 0 ? ( Car .$. "xs"
+                                        , Var "nth" .$. ["i" - 1, Cdr .$. "xs"]
+                                        )))]
+         (Var "nth" .$. [i, xs])
+
+test_nth :: Prog
+test_nth = nth_ 3 testlist
+
+
