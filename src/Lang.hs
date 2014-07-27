@@ -20,7 +20,7 @@ type Ident = String
 
 data Val = IntV Int
          | NilV
-         deriving (Show)
+         deriving (Show, Eq)
 
 data Expr = Let Ident Expr Expr
           | App2 BinOp Expr Expr
@@ -30,7 +30,7 @@ data Expr = Let Ident Expr Expr
           | Var Ident
           | Lambda [Ident] Expr
           | AppL Expr [Expr]
-          deriving (Show)
+          deriving (Show, Eq)
 
 data Prog = Letrec [(Ident, Expr)] Expr
           | Expr Expr
@@ -44,12 +44,12 @@ data BinOp = Add
            | Gt
            | GtE
            | Cons
-           deriving (Show)
+           deriving (Show, Eq)
 
 data UnOp = Car
           | Cdr
           | IsNil
-          deriving (Show)
+          deriving (Show, Eq)
 
 binOp :: BinOp -> GccInst
 binOp o = case o of
@@ -98,6 +98,11 @@ not_ e = Cond (App2 Eq e 0) 1 0
 
 (?) :: Expr -> (Expr, Expr) -> Expr
 cond ? (thenCase, elseCase) = Cond cond thenCase elseCase
+
+infixr 5 .:
+(.:) :: Expr -> Expr -> Expr
+x .: xs = App2 Cons x xs
+
 
 int :: Int -> Expr
 int = Lit . IntV
