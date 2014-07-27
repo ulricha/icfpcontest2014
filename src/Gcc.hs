@@ -36,6 +36,9 @@ data GccCInst
     | C_DUM Int
     | C_RAP Int
     | C_DBUG
+    | C_TSEL Line Line
+    | C_TAP Int
+    | C_TRAP Int
 
 instance Show GccCInst where
     show (C_LDC n) = ("LDC " ++ show n)
@@ -59,6 +62,9 @@ instance Show GccCInst where
     show (C_DUM n) = ("DUM " ++ show n)
     show (C_RAP n) = ("RAP " ++ show n)
     show (C_DBUG) = "DBUG "
+    show (C_TSEL t f) = "TSEL " ++ show t ++ " " ++ show f
+    show (C_TAP n) = "TAP " ++ show n
+    show (C_TRAP n) = "TRAP " ++ show n
 
 type Label = String
 
@@ -85,6 +91,9 @@ data GccInst
     | RAP Int
     | DBUG
     | LABEL Label
+    | TSEL Label Label
+    | TAP Int
+    | TRAP Int
 
 instance Show GccInst where
     show (LDC n) = ("LDC " ++ show n)
@@ -109,6 +118,9 @@ instance Show GccInst where
     show (RAP n) = ("RAP " ++ show n)
     show (DBUG) = "DBUG "
     show (LABEL l) = l ++ ":"
+    show (TSEL t f) = "TSEL " ++ show t ++ " " ++ show f
+    show (TAP n) = "TAP " ++ show n
+    show (TRAP n) = "TRAP " ++ show n
 
 data GccInstruction cont
     = Inst GccInst cont
@@ -161,6 +173,9 @@ cdr = liftF $ Inst CDR ()
 sel :: Label -> Label -> GccProgram ()
 sel t f = liftF $ Inst (SEL t f) ()
 
+tsel :: Label -> Label -> GccProgram ()
+tsel t f = liftF $ Inst (TSEL t f) ()
+
 join_ :: GccProgram ()
 join_ = liftF $ Inst JOIN ()
 
@@ -170,6 +185,9 @@ ldf i = liftF $ Inst (LDF i) ()
 ap :: Int -> GccProgram ()
 ap i = liftF $ Inst (AP i) ()
 
+tap :: Int -> GccProgram ()
+tap i = liftF $ Inst (TAP i) ()
+
 rtn :: GccProgram ()
 rtn = liftF $ Inst RTN ()
 
@@ -178,6 +196,9 @@ dum i = liftF $ Inst (DUM i) ()
 
 rap :: Int -> GccProgram ()
 rap i = liftF $ Inst (RAP i) ()
+
+trap :: Int -> GccProgram ()
+trap i = liftF $ Inst (TRAP i) ()
 
 dbug :: GccProgram ()
 dbug = liftF $ Inst DBUG ()
@@ -292,6 +313,7 @@ mapLabels env (LDF lab : insts) = do
     cinsts <- mapLabels env insts
     return $ C_LDF line : cinsts
 mapLabels env (AP i : insts) = (:) (C_AP i) <$> mapLabels env insts
+mapLabels env (TAP i : insts) = (:) (C_TAP i) <$> mapLabels env insts
 mapLabels env (LDC i : insts) = (:) (C_LDC i) <$> mapLabels env insts
 mapLabels env (LD i1 i2: insts) = (:) (C_LD i1 i2) <$> mapLabels env insts
 mapLabels env (ADD : insts) = (:) C_ADD <$> mapLabels env insts
@@ -312,10 +334,18 @@ mapLabels env (SEL t f : insts) = do
                $ lookup f env
     cinsts <- mapLabels env insts
     return $ C_SEL lineTrue lineFalse : cinsts
+mapLabels env (TSEL t f : insts) = do
+    lineTrue <- maybe (Left ("mapLabels: unknown 'true' branch name " ++ show t)) Right
+              $ lookup t env
+    lineFalse <- maybe (Left ("mapLabels: unknown 'false' branch name " ++ show f)) Right
+               $ lookup f env
+    cinsts <- mapLabels env insts
+    return $ C_TSEL lineTrue lineFalse : cinsts
 mapLabels env (JOIN : insts) = (:) C_JOIN <$> mapLabels env insts
 mapLabels env (RTN : insts) = (:) C_RTN <$> mapLabels env insts
 mapLabels env (DUM i : insts) = (:) (C_DUM i) <$> mapLabels env insts
 mapLabels env (RAP i : insts) = (:) (C_RAP i) <$> mapLabels env insts
+mapLabels env (TRAP i : insts) = (:) (C_TRAP i) <$> mapLabels env insts
 mapLabels env (DBUG : insts) = (:) C_DBUG <$> mapLabels env insts
 
 -- | Turn string labels into proper line numbers
