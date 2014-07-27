@@ -104,8 +104,32 @@ flipStackAsm = do
     ld 0 0
     rtn
 
-untangleArgv :: GccProg Int
-untangleArgv = error "sexpToGcc: untangleArgv"
+-- | in secd, "ap" can have a variable-length parameter list!  the
+-- length is only known at run-time, so this has to be handled in gcc
+-- assembler.
+--
+-- traverse the argument list and push everything to the stack in the
+-- right order, keeping track of the number of arguments pushed.
+-- then, since the number of arguments is a data value, and gcc-ap
+-- only accepts a literal number of arguments, we branch based on that
+-- value to handle up to 'maxApVarArgs' arguments.
+untangleArgv :: GccProg ()
+untangleArgv = do
+    ldf "_untangle_argv"
+    ap 2
+
+untangleArgvAsm :: GccProg ()
+untangleArgvAsm = do
+    label "_untangle_argv"
+
+    error "untangleArgvAsm"
+
+    ld 0 1
+    ld 0 0
+    rtn
+
+maxApVarArgs :: Int
+maxApVarArgs = 10
 
       -- FIXME: not sure how this is supposed to work.  i think ap can
       -- be called without an argument, which will cause it to pop a
@@ -124,6 +148,7 @@ sexpToGcc :: AL.Lisp -> GccProg ()
 sexpToGcc sexp@(AL.List secd) = do
       insts
       flipStackAsm
+      untangleArgvAsm
       mapM_ (\ (n, r) -> label n >> r) $ routines
   where
     (_, routines, insts) = lexer [] 0 [] [] secd
@@ -166,9 +191,8 @@ sexpToGcc sexp@(AL.List secd) = do
     lexer scopes label routines insts (AL.Symbol "AP" : AL.Number i : secd) =
         lexer scopes label routines (insts ++ [ap (round i)]) secd
 
-    -- in secd, "ap" has a variable list of parameters!  :(
     lexer scopes label routines insts (AL.Symbol "AP" : secd) =
-        lexer scopes label routines (insts ++ [untangleArgv >>= ap]) secd
+        lexer scopes label routines (insts ++ [untangleArgv]) secd
 
     lexer scopes label routines insts (AL.Symbol "DUM" : AL.Number i : secd) =
         lexer scopes label routines (insts ++ [dum (round i)]) secd
