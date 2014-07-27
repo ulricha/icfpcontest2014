@@ -88,6 +88,9 @@ scopeLookup frames name = f 0 frames
 -- scoping, and the two down agree very well with each other.  must
 -- think more about this.  find counter-example?
 
+-- FIXME: the generated code appears to make the runtime crash in some
+-- cases.
+
 -- | comple an secd program into an gcc program.
 sexpToGcc :: AL.Lisp -> GccProg ()
 sexpToGcc sexp@(AL.List secd) = do
@@ -199,7 +202,7 @@ sexpToGcc sexp@(AL.List secd) = do
 
 
 x = do
-    scheme_sample :: SBS <- SBS.readFile "../scheme/4.scm"
+    scheme_sample :: SBS <- SBS.readFile "../scheme/5.scm"
     SBS.putStrLn scheme_sample
     schemeToSECD scheme_sample >>= putStrLn . ppShow
     schemeToGcc scheme_sample >>= \ (Right prog) -> putStrLn . codeGen $ prog
