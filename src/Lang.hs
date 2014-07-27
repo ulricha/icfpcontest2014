@@ -23,6 +23,7 @@ data Val = IntV Int
          deriving (Show, Eq)
 
 data Expr = Let Ident Expr Expr
+          | Letrec [(Ident, Expr)] Expr
           | App2 BinOp Expr Expr
           | App1 UnOp Expr
           | Cond Expr Expr Expr
@@ -31,10 +32,6 @@ data Expr = Let Ident Expr Expr
           | Lambda [Ident] Expr
           | AppL Expr [Expr]
           deriving (Show, Eq)
-
-data Prog = Letrec [(Ident, Expr)] Expr
-          | Expr Expr
-          deriving (Show)
 
 data BinOp = Add
            | Sub
@@ -221,8 +218,7 @@ compileExpr (AppL fun es) = do
     funCode  <- compileExpr fun
     return $ argsCode ++ funCode ++ [AP arity]
 
-compileProg :: Prog -> Compile [GccInst]
-compileProg (Letrec bindings body) = do
+compileExpr (Letrec bindings body) = do
     let nrBindings = length bindings
         names      = map fst bindings
     bindingsCode <- concat <$> mapM (enterScope names . compileExpr . snd) bindings
@@ -233,9 +229,6 @@ compileProg (Letrec bindings body) = do
              ++ bindingsCode 
              ++ [LDF mainLabel, RAP nrBindings]
 
-compileProg (Expr e) = compileExpr e
-    
-     
 {-
 letrec x = e1
        y = e2
@@ -273,10 +266,10 @@ initCompileState = CS 0
 initEnv :: Env
 initEnv = []
 
-doCompile :: Prog -> [GccInst]
+doCompile :: Expr -> [GccInst]
 doCompile e = main ++ [RTN] ++ sections
   where
-    (main, sections) = evalRWS (compileProg e) initEnv initCompileState
+    (main, sections) = evalRWS (compileExpr e) initEnv initCompileState
 
 --------------------------------------------------------------------------------
 -- Compiler tests
@@ -284,13 +277,13 @@ doCompile e = main ++ [RTN] ++ sections
 test1 :: Expr
 test1 = Let "f" (Lambda ["x"] ("x" + "x")) (Var "f" .$. [42])
 
-test2 :: Prog
+test2 :: Expr
 test2 = Letrec [ ("to", Lambda ["x"] (Var "go" .$. [Var "x" - 1]))
                , ("go", Lambda ["y"] (Var "to" .$. [Var "y" + 1]))
                ]
                (Var "go" .$. [1])
 
-simpleAI :: Prog
+simpleAI :: Expr
 simpleAI = 
   Letrec [ ("main", Lambda ["worldstate", "ghostAIs"] (Cons .$. (0, "stepfun")))
          , ("stepfun", Lambda ["aistate", "worldstate"] (Cons .$. (0, 3)))
@@ -302,7 +295,7 @@ testlist :: Expr
 testlist = Cons .$. (1, Cons .$. (2, Cons .$. (3, Cons .$. (4, nil))))
 
 -- length xs = if isnil xs then 0 else 1 + length (cdr xs)
-length_ :: Expr -> Prog
+length_ :: Expr -> Expr
 length_ xs =
   Letrec [ ("length", Lambda ["xs"] 
                              (IsNil .$. "xs" ? ( 0
@@ -311,12 +304,12 @@ length_ xs =
          ]
          (Var "length" .$. [xs])
 
-test_length :: Prog
+test_length :: Expr
 test_length = length_ testlist
 
 
 -- nth_ i xs = if i == 0 then car xs else nth_ (i - 1) (cdr xs)
-nth_ :: Expr -> Expr -> Prog
+nth_ :: Expr -> Expr -> Expr
 nth_ i xs = 
   Letrec [ ( "nth", Lambda ["i", "xs"]
                            ("i" .== 0 ? ( Car .$. "xs"
@@ -324,7 +317,7 @@ nth_ i xs =
                                         )))]
          (Var "nth" .$. [i, xs])
 
-test_nth :: Prog
+test_nth :: Expr
 test_nth = nth_ 3 testlist
 
 
