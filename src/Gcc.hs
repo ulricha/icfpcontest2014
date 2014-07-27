@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Gcc where
 
@@ -6,6 +7,7 @@ import Control.Monad.Free
 import Control.Applicative
 import Data.List
 import Data.Maybe
+import Text.Printf
 
 type Line = Int
 
@@ -168,8 +170,20 @@ instList (Pure _)          = []
 instList (Free (Inst i c)) = i : instList c
 
 codeGen :: (Show a) => GccProgram String a -> String
-codeGen p = intercalate "\n" $ map show $ fromEither_ $ lineLabels $ instList p
+codeGen p = intercalate "\n"
+          . map (\ (line :: Int, inst :: String) -> printf "%s ; %8.8i" inst line)
+          . zip [0..]
+          . pad
+          . map show
+          . fromEither_
+          . lineLabels
+          . instList
+          $ p
   where
+    pad :: [String] -> [String]
+    pad xs = map (\ x -> x ++ (replicate (maximum (map length xs) - length x) ' ')) xs
+
+    fromEither_ :: Either String [GccCInst] -> [GccCInst]
     fromEither_ (Right x) = x
     fromEither_ (Left e) = error $ "codeGen: lineLabels gave Nothing\nmsg:\n" ++ e ++ "\ninput:\n" ++ show p
 
