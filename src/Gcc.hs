@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 
 module Gcc where
 
@@ -170,20 +171,22 @@ instList (Pure _)          = []
 instList (Free (Inst i c)) = i : instList c
 
 codeGen :: (Show a) => GccProgram String a -> String
-codeGen p = intercalate "\n"
-          . map (\ (line :: Int, inst :: String) -> printf "%s ; %8.8i" inst line)
-          . zip [0..]
-          . pad
-          . map show
-          . fromEither_
-          . lineLabels
-          . instList
-          $ p
+codeGen p = intercalate "\n" . enumerate . pad . map show $ l
   where
+    (l :: [GccCInst], env :: [(String, Int)]) = fromEither_ . lineLabels . instList $ p
+
     pad :: [String] -> [String]
     pad xs = map (\ x -> x ++ (replicate (maximum (map length xs) - length x) ' ')) xs
 
-    fromEither_ :: Either String [GccCInst] -> [GccCInst]
+    enumerate :: [String] -> [String]
+    enumerate = map (\ (line :: Int, inst :: String) -> printf "%s ; %8.8i%s" inst line (label line)) . zip [0..]
+      where
+        env' :: [(Int, String)] = map (\ (name, line) -> (line, name)) env
+
+        label :: Int -> String
+        label i = maybe "" (printf " [%s]" :: String -> String) . lookup i $ env'
+
+    fromEither_ :: Either String x -> x
     fromEither_ (Right x) = x
     fromEither_ (Left e) = error $ "codeGen: lineLabels gave Nothing\nmsg:\n" ++ e ++ "\ninput:\n" ++ show p
 
@@ -287,7 +290,7 @@ mapLabels env (RAP i : insts) = (:) (C_RAP i) <$> mapLabels env insts
 mapLabels env (DBUG : insts) = (:) C_DBUG <$> mapLabels env insts
 
 -- | Turn string labels into proper line numbers
-lineLabels :: [GccInst String] -> Either String [GccCInst]
-lineLabels insts = mapLabels lineEnv insts
+lineLabels :: [GccInst String] -> Either String ([GccCInst], [(String, Int)])
+lineLabels insts = (,lineEnv) <$> mapLabels lineEnv insts
   where
     lineEnv = assocLabelLine $ enumInsts insts
