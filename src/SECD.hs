@@ -111,36 +111,92 @@ flipStackAsm = do
 -- traverse the argument list and push everything to the stack in the
 -- right order, keeping track of the number of arguments pushed.
 -- then, since the number of arguments is a data value, and gcc-ap
--- only accepts a literal number of arguments, we branch based on that
--- value to handle up to 'maxApVarArgs' arguments.
+-- only accepts a literal number of arguments, branch to individual
+-- literal calls ap-calls based on that value.  handle up to
+-- 'maxApVarArgs' arguments.
 untangleArgv :: GccProg ()
 untangleArgv = do
+    ldc 0  -- number of args already pushed
     ldf "_untangle_argv"
     ap 2
 
 untangleArgvAsm :: GccProg ()
 untangleArgvAsm = do
     label "_untangle_argv"
+    -- ld 0 0  -- arg list
+    -- ld 0 1  -- var-arg function closure
+    -- ld 0 2  -- number of args already pushed
 
-    error "untangleArgvAsm"
+    let llabel :: String -> GccProg ()
+        llabel = label . llabels
 
-    ld 0 1
+        llabels :: String -> String
+        llabels "" = "_untangle_argv"
+        llabels s = "_untangle_argv_" ++ s
+
+    -- if arg list is not a cons, then we have pushed all arguments.
     ld 0 0
+    atom
+    sel (llabels "done_pushing") (llabels "not_done_pushing")
     rtn
+
+    -- local branches (thankfully, we may keep the environment frame
+    -- because it's just sel, not ldf/ap)
+
+    -- push function, push number of arguments i, call "ap i".
+    llabel "done_pushing"
+    ld 0 1
+    ld 0 2
+    ldc 1
+    ceq
+    sel (llabels "1") (llabels "not_1")
+    join_
+
+    -- push car of arg list, put re-construct stack, call self.
+    llabel "not_done_pushing"
+    ld 0 0
+    car
+    ld 0 0
+    cdr
+    ld 0 1
+    ld 0 2
+    ldc 1
+    add
+    ldf (llabels "")
+    ap 3
+    join_
+
+    -- branches for calling ap with the right integer literal.
+    mapM_ (\ i -> do
+              llabel (show i)
+              ld 0 1
+              ap i
+              join_)
+          [1..maxApVarArgs]
+
+    mapM_ (\ i -> if i < maxApVarArgs
+                      then do
+                          llabel ("not_" ++ show i)
+                          ld 0 2
+                          ldc (i + 1)
+                          ceq
+                          sel (llabels (show (i + 1))) (llabels $ "not_" ++ (show (i + 1)))
+                          join_
+                      else do
+                          llabel ("not_" ++ show i)
+                          ldc 0xdeadbaff
+                          dbug
+                          join_)
+          [1..maxApVarArgs]
+
+    -- try to be informative about this when it happens
+    llabel "0"
+    ldc 0xdeadbaaf
+    dbug
+    join_
 
 maxApVarArgs :: Int
 maxApVarArgs = 10
-
-      -- FIXME: not sure how this is supposed to work.  i think ap can
-      -- be called without an argument, which will cause it to pop a
-      -- function and a *list* of arguments from the stack (rather
-      -- than the requested number of individual arguments) and pass
-      -- the cars of the list as arguments to the function.
-      --
-      -- if that's true, i'm not sure how this is translated into ap.
-      -- we can't know the length of the list at compile-time, so we
-      -- can't pass the number of arguments to ap.
-
 
 
 -- | comple an secd program into an gcc program.
