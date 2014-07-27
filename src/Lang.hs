@@ -5,6 +5,8 @@
 
 module Lang where
 
+import Debug.Trace
+
 import Control.Monad.RWS
 import Control.Monad.Except
 import Data.Maybe
@@ -161,7 +163,7 @@ searchFrames name env = go 0 env
   where
     go i (frame : frames) = 
         case lookup name frame of
-            Just ref -> return $ ref i
+            Just ref -> trace (name ++ " -> " ++ show (ref i)) $ return $ ref i
             Nothing  -> go (i + 1) frames
     go _ [] = throwError name
 
@@ -321,3 +323,11 @@ test_nth :: Expr
 test_nth = nth_ 3 testlist
 
 
+{-
+let i = 53
+in letrec f = \i -> if i == 42 then j else f (i + 1) in f 35
+-}
+scoping :: Expr
+scoping =
+    Let "j" 53 (Letrec [("f", Lambda ["i"] ("i" .== 42 ? ("j", Var "f" .$. ["i" + 1])))]
+                       (Var "f" .$. [35]))
