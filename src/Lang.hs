@@ -6,6 +6,7 @@
 module Lang where
 
 import Control.Monad.RWS
+import Control.Monad.Except
 import Data.Maybe
 import Control.Applicative
 
@@ -145,7 +146,7 @@ type EnvFrame = [(Ident, ScopeDepth -> FrameRef)]
 
 type Env = [EnvFrame]
 
-type Compile a = RWS Env [GccInst] CompileState a
+type Compile a = RWST Env [GccInst] CompileState (Except String) a
 
 extendEnv :: [Ident] -> Env -> Env
 extendEnv args frames = localFrame : frames
@@ -155,18 +156,17 @@ extendEnv args frames = localFrame : frames
 enterScope :: [Ident] -> Compile a -> Compile a
 enterScope args m = local (\e -> extendEnv args e) m
 
-searchFrames :: Ident -> Env -> Maybe FrameRef
+searchFrames :: Ident -> Env -> Compile FrameRef
 searchFrames name env = go 0 env
   where
-    go :: ScopeDepth -> Env -> Maybe FrameRef
     go i (frame : frames) = 
         case lookup name frame of
-            Just ref -> Just $ ref i
+            Just ref -> return $ ref i
             Nothing  -> go (i + 1) frames
-    go _ [] = Nothing
+    go _ [] = throwError name
 
-lookupEnv :: Ident -> Compile (Maybe FrameRef)
-lookupEnv name = asks (searchFrames name)
+lookupEnv :: Ident -> Compile FrameRef
+lookupEnv name = ask >>= \e -> searchFrames name e
 
 --------------------------------------------------------------------------------
 -- Actual compilation of expressions
@@ -207,8 +207,7 @@ compileExpr (Lit (IntV i)) = return $ [LDC i]
 compileExpr (Lit NilV) = return $ [LDC 0xdeadbeef]
 
 compileExpr (Var name) = do
-    -- FIXME get rid of fromJust
-    (frame, frameField) <- fromJust <$> lookupEnv name
+    (frame, frameField) <- lookupEnv name
     return $ [LD frame frameField]
 
 compileExpr (AppL fun es) = do
@@ -267,9 +266,10 @@ initEnv :: Env
 initEnv = []
 
 doCompile :: Expr -> [GccInst]
-doCompile e = main ++ [RTN] ++ sections
-  where
-    (main, sections) = evalRWS (compileExpr e) initEnv initCompileState
+doCompile e =
+    case runExcept $ evalRWST (compileExpr e) initEnv initCompileState of
+        Left msg -> error msg
+        Right (main, sections) -> main ++ [RTN] ++ sections
 
 --------------------------------------------------------------------------------
 -- Compiler tests
