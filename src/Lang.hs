@@ -48,6 +48,7 @@ data BinOp = Add
 
 data UnOp = Car
           | Cdr
+          | IsNil
           deriving (Show)
 
 binOp :: BinOp -> GccInst
@@ -65,6 +66,7 @@ unOp :: UnOp -> GccInst
 unOp o = case o of
     Car   -> CAR
     Cdr   -> CDR
+    IsNil -> ATOM
 
 --------------------------------------------------------------------------------
 -- Constructors
@@ -102,9 +104,6 @@ int = Lit . IntV
 
 nil :: Expr
 nil = Lit NilV
-
-isnil :: Expr -> Expr
-isnil e = e .== nil
 
 class FunApp f args | f -> args where
     (.$.) :: f -> args -> Expr
@@ -289,3 +288,18 @@ simpleAI =
          , ("stepfun", Lambda ["aistate", "worldstate"] (Cons .$. (0, 3)))
          ]
          (Var "main" .$. [])
+
+length_ :: Expr -> Prog
+length_ xs =
+  Letrec [ ("length", Lambda ["xs"] 
+                             (IsNil .$. "xs" ? ( 0
+                                               , 1 + Var "length" .$. [Cdr .$. "xs"]
+                                               )))
+         ]
+         (Var "length" .$. [xs])
+
+testlist :: Expr
+testlist = Cons .$. (1, Cons .$. (2, Cons .$. (3, Cons .$. (4, nil))))
+
+test_length :: Prog
+test_length = length_ testlist
