@@ -30,7 +30,7 @@ executable icfpcontest2014
                      , pretty-show
                      , string-conversions
                      , text
-                     , mtl
+                     , mtl >= 2.2.1
                      , directory
                      , filepath
   hs-source-dirs:      src
