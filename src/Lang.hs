@@ -282,3 +282,10 @@ test2 = Letrec [ ("to", Lambda ["x"] (Var "go" .$. [Var "x" - 1]))
                , ("go", Lambda ["y"] (Var "to" .$. [Var "y" + 1]))
                ]
                (Var "go" .$. [1])
+
+simpleAI :: Prog
+simpleAI = 
+  Letrec [ ("main", Lambda ["worldstate", "ghostAIs"] (Cons .$. (0, "stepfun")))
+         , ("stepfun", Lambda ["aistate", "worldstate"] (Cons .$. (0, 3)))
+         ]
+         (Var "main" .$. [])
