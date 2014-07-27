@@ -10,7 +10,6 @@ import Data.Maybe
 import Control.Applicative
 
 import Gcc
-import GccMacros
 
 import GHC.Exts (IsString(..))
 
@@ -133,8 +132,7 @@ freshLabel = do
     return $ "label" ++ show (labelSupply s)
 
 --------------------------------------------------------------------------------
--- Environments
-
+-- Environment mapping variables to references into environment frames
 
 type ScopeDepth = Int
 type FrameField = Int
@@ -145,6 +143,8 @@ type EnvFrame = [(Ident, ScopeDepth -> FrameRef)]
 
 type Env = [EnvFrame]
 
+type Compile a = RWS Env [GccInst] CompileState a
+
 extendEnv :: [Ident] -> Env -> Env
 extendEnv args frames = localFrame : frames
   where 
@@ -154,66 +154,73 @@ enterScope :: [Ident] -> Compile a -> Compile a
 enterScope args m = local (\e -> extendEnv args e) m
 
 searchFrames :: Ident -> Env -> Maybe FrameRef
-searchFrames name env = go 0 env name
+searchFrames name env = go 0 env
   where
-    go :: ScopeDepth -> Env -> Ident -> Maybe FrameRef
-    go i (frame : frames) name = 
+    go :: ScopeDepth -> Env -> Maybe FrameRef
+    go i (frame : frames) = 
         case lookup name frame of
             Just ref -> Just $ ref i
-            Nothing  -> go (i + 1) frames name
-    go _ [] _ = Nothing
+            Nothing  -> go (i + 1) frames
+    go _ [] = Nothing
 
 lookupEnv :: Ident -> Compile (Maybe FrameRef)
 lookupEnv name = asks (searchFrames name)
 
-type Compile a = RWS Env [GccInst] CompileState a
+--------------------------------------------------------------------------------
+-- Actual compilation of expressions
 
-compile :: Expr -> Compile [GccInst]
-compile (Let ident e1 e2) = do
-    compile $ AppL (Lambda [ident] e2) [e1]
+toSection :: Expr -> [GccInst] -> Compile String
+toSection e suffix = do
+    lab     <- freshLabel
+    section <- compileExpr e
+    tell $ LABEL lab : section ++ suffix
+    return $ lab
 
-compile (App2 o e1 e2) = do
-    c1 <- compile e1
-    c2 <- compile e2
+compileExpr :: Expr -> Compile [GccInst]
+compileExpr (Let ident e1 e2) = do
+    compileExpr $ AppL (Lambda [ident] e2) [e1]
+
+compileExpr (App2 o e1 e2) = do
+    c1 <- compileExpr e1
+    c2 <- compileExpr e2
     return $ c1 ++ c2 ++ [binOp o]
 
-compile (App1 o e) = do
-    c <- compile e
+compileExpr (App1 o e) = do
+    c <- compileExpr e
     return $ c ++ [unOp o]
 
-compile (Cond c t e) = do
-    cc <- compile c
+compileExpr (Cond c t e) = do
+    cc <- compileExpr c
     
     thenLabel <- toSection t [JOIN]
     elseLabel <- toSection e [JOIN]
 
     return $ cc ++ [SEL thenLabel elseLabel]
 
-compile (Lambda args body) = do
-    let argEnv = zip args [1..]
+compileExpr (Lambda args body) = do
     bodyLabel <- enterScope args $ toSection body [RTN]
     return [LDF bodyLabel]
     
-compile (Lit (IntV i)) = return $ [LDC i]
-compile (Lit NilV) = return $ [LDC 0xdeadbeef]
+compileExpr (Lit (IntV i)) = return $ [LDC i]
+compileExpr (Lit NilV) = return $ [LDC 0xdeadbeef]
 
-compile (Var name) = do
+compileExpr (Var name) = do
     -- FIXME get rid of fromJust
     (frame, frameField) <- fromJust <$> lookupEnv name
     return $ [LD frame frameField]
 
-compile (AppL fun es) = do
+compileExpr (AppL fun es) = do
     -- Note: partial application is not allowed
     let arity = length es
-    argsCode <- concat <$> mapM compile es
-    funCode  <- compile fun
+    argsCode <- concat <$> mapM compileExpr es
+    funCode  <- compileExpr fun
     return $ argsCode ++ funCode ++ [AP arity]
 
 compileProg :: Prog -> Compile [GccInst]
 compileProg (Letrec bindings body) = do
     let nrBindings = length bindings
         names      = map fst bindings
-    bindingsCode <- concat <$> mapM (\(n, e) -> enterScope names $ compile e) bindings
+    bindingsCode <- concat <$> mapM (enterScope names . compileExpr . snd) bindings
     
     mainLabel    <- enterScope names $ toSection body [RTN]
 
@@ -221,7 +228,7 @@ compileProg (Letrec bindings body) = do
              ++ bindingsCode 
              ++ [LDF mainLabel, RAP nrBindings]
 
-compileProg (Expr e) = compile e
+compileProg (Expr e) = compileExpr e
     
      
 {-
@@ -255,13 +262,6 @@ RTN
 -} 
 
     
-toSection :: Expr -> [GccInst] -> Compile String
-toSection e suffix = do
-    lab     <- freshLabel
-    section <- compile e
-    tell $ LABEL lab : section ++ suffix
-    return $ lab
-
 initCompileState :: CompileState
 initCompileState = CS 0
 
