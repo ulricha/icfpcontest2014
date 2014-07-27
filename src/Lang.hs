@@ -32,12 +32,6 @@ data Expr = Let Ident Expr Expr
           | AppL Expr [Expr]
           deriving (Show)
 
-int :: Int -> Expr
-int = Lit . IntV
-
-nil :: Expr
-nil = Lit NilV
-
 data Prog = Letrec [(Ident, Expr)] Expr
           | Expr Expr
           deriving (Show)
@@ -54,7 +48,6 @@ data BinOp = Add
 
 data UnOp = Car
           | Cdr
-          | IsNil
           deriving (Show)
 
 binOp :: BinOp -> GccInst
@@ -72,7 +65,6 @@ unOp :: UnOp -> GccInst
 unOp o = case o of
     Car   -> CAR
     Cdr   -> CDR
-    IsNil -> undefined
 
 --------------------------------------------------------------------------------
 -- Constructors
@@ -104,6 +96,15 @@ not_ e = Cond (App2 Eq e 0) 1 0
 
 (?) :: Expr -> (Expr, Expr) -> Expr
 cond ? (thenCase, elseCase) = Cond cond thenCase elseCase
+
+int :: Int -> Expr
+int = Lit . IntV
+
+nil :: Expr
+nil = Lit NilV
+
+isnil :: Expr -> Expr
+isnil e = e .== nil
 
 class FunApp f args | f -> args where
     (.$.) :: f -> args -> Expr
