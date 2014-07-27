@@ -14,13 +14,12 @@ import Game
 import Gcc
 import GccExercises
 import SECD
-
+import Lang
 
 main :: IO ()
 main = do
     setCurrentDirectory "../scheme"
     getDirectoryContents "." >>= mapM_ demoScmToGcc . sort . filter ((== ".scm") . takeExtension)
-
 
 demoScmToGcc :: FilePath -> IO ()
 demoScmToGcc file = do
@@ -28,4 +27,4 @@ demoScmToGcc file = do
     scheme_sample :: SBS <- SBS.readFile file
     SBS.putStrLn scheme_sample
     schemeToSECD scheme_sample >>= putStrLn . Data.String.Conversions.cs
-    schemeToGcc scheme_sample >>= \ (Right prog) -> putStrLn . codeGen $ prog
+    schemeToGcc scheme_sample >>= \ (Right prog) -> putStrLn . codeGen $ instList prog

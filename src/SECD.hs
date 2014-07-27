@@ -25,7 +25,7 @@ import Gcc
 import GccMacros
 
 
-schemeToGcc :: SC.SBS -> IO (Either String (GccProgram String ()))
+schemeToGcc :: SC.SBS -> IO (Either String (GccProgram ()))
 schemeToGcc = fmap secdToGcc . schemeToSECD
 
 
@@ -45,7 +45,7 @@ schemeToSECD scheme = do
     f <$> SBS.hGetContents o
 
 
-secdToGcc :: SC.SBS -> Either String (GccProgram String ())
+secdToGcc :: SC.SBS -> Either String (GccProgram ())
 secdToGcc = fmap sexpToGcc . eitherResult . parse AL.lisp
 
 
@@ -264,7 +264,7 @@ sexpToGcc sexp@(AL.List secd) = do
     matchUnaryOP "ADD" = Just add
     matchUnaryOP "SUB" = Just sub
     matchUnaryOP "MUL" = Just mul
-    matchUnaryOP "DIV" = Just Gcc.div
+    matchUnaryOP "DIV" = Just div_
     matchUnaryOP "CEQ" = Just ceq
     matchUnaryOP "CGT" = Just cgt
     matchUnaryOP "CGTE" = Just cgte
@@ -288,4 +288,4 @@ x = do
     scheme_sample :: SBS <- SBS.readFile "../scheme/5.scm"
     SBS.putStrLn scheme_sample
     schemeToSECD scheme_sample >>= putStrLn . ppShow
-    schemeToGcc scheme_sample >>= \ (Right prog) -> putStrLn . codeGen $ prog
+    schemeToGcc scheme_sample >>= \ (Right prog) -> putStrLn . codeGen $ instList prog
