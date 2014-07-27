@@ -7,7 +7,6 @@ module Lang where
 
 import Control.Monad.RWS
 import Control.Monad.Except
-import Data.Maybe
 import Control.Applicative
 
 import Gcc
@@ -311,13 +310,40 @@ test_length = length_ testlist
 -- nth_ i xs = if i == 0 then car xs else nth_ (i - 1) (cdr xs)
 nth_ :: Expr -> Expr -> Expr
 nth_ i xs = 
-  Letrec [ ( "nth", Lambda ["i", "xs"]
-                           ("i" .== 0 ? ( Car .$. "xs"
-                                        , Var "nth" .$. ["i" - 1, Cdr .$. "xs"]
-                                        )))]
+  Letrec [ ("nth", Lambda ["i", "xs"]
+                          ("i" .== 0 ? ( Car .$. "xs"
+                                       , Var "nth" .$. ["i" - 1, Cdr .$. "xs"]
+                                       )))]
          (Var "nth" .$. [i, xs])
 
 test_nth :: Expr
 test_nth = nth_ 3 testlist
 
+-- Test case for Tail-Call Opt
 
+fac :: Expr
+fac = 
+  Letrec [ ("fac", Lambda ["n"]
+                          (("n" .== 1 .|| "n" .== 0)
+                           ? ( 1
+                             , "n" * Var "fac" .$. ["n" - 1]
+                             )))
+         ]
+         (Var "fac" .$. [5])
+
+factail :: Expr
+factail =
+  Letrec [ ("fac", Lambda ["n"] (Var "go" .$. [1, "n"]))
+         , ("go", Lambda ["p", "n"]
+                         (("n" .== 1 .|| "n" .== 0)
+                          ? ("p", Var "go" .$. ["p" * "n", "n" - 1])))
+         ]
+         (Var "fac" .$. [5])
+                          
+
+
+{-
+
+
+
+-}
